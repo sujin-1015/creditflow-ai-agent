@@ -1,0 +1,17 @@
+.env
+__pycache__/
+*.pyc
+onchain/devnet_keys/
+
+# 포기한 pay.sh CLI 클론 (자체 .git 보유 — nested repo 충돌 방지 위해 제외)
+onchain/pay/
+
+# Kaggle 원본 데이터 + 전처리 산출물 (용량/재배포 라이선스 문제로 제외, README에 재현 방법 안내 예정)
+Training Data.csv
+Test Data.csv
+Sample Prediction Dataset.csv
+processed/
+
+# Claude Code 로컬 설정 (개인 환경용, 공개 repo에 불필요)
+.claude/
+

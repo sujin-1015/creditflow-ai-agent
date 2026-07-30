@@ -1,0 +1,12 @@
+.git
+.env
+__pycache__/
+*.pyc
+onchain/pay/
+onchain/payments_log.json
+onchain/devnet_transactions.json
+onchain/rationale_reports/
+models/figures/
+Training Data.csv
+Test Data.csv
+Sample Prediction Dataset.csv

@@ -1,0 +1,16 @@
+fastapi
+uvicorn[standard]
+google-genai
+google-cloud-bigquery
+google-cloud-pubsub
+python-dotenv
+pydantic
+joblib
+pandas
+numpy
+scikit-learn
+xgboost
+lightgbm
+solders
+solana
+base58

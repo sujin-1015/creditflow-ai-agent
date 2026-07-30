@@ -1,0 +1,86 @@
+{
+  "val_auc": {
+    "xgboost": 0.7846224851226811,
+    "lightgbm": 0.7794055098943381
+  },
+  "primary_model": "xgboost",
+  "test_auc": 0.7882875525065278,
+  "thresholds": {
+    "t_approve": 0.5877197742462158,
+    "t_reject": 0.6263755917549133,
+    "approve_size": 32130,
+    "approve_bad_rate": 0.07861811391223156,
+    "reject_bad_rate": 0.4365079365079365,
+    "relaxation_step": 0,
+    "constraint_used": {
+      "approve_bad_rate_max": 0.08,
+      "reject_bad_rate_min": 0.2
+    }
+  },
+  "val_tier_summary": {
+    "approve": {
+      "count": 32130,
+      "bad_rate": 0.07861811391223156,
+      "share": 0.85
+    },
+    "conditional": {
+      "count": 1890,
+      "bad_rate": 0.25026455026455025,
+      "share": 0.05
+    },
+    "reject": {
+      "count": 3780,
+      "bad_rate": 0.4365079365079365,
+      "share": 0.1
+    }
+  },
+  "test_tier_summary": {
+    "approve": {
+      "count": 32110,
+      "bad_rate": 0.07658050451572719,
+      "share": 0.8494708994708995
+    },
+    "conditional": {
+      "count": 1883,
+      "bad_rate": 0.2809346787041954,
+      "share": 0.04981481481481481
+    },
+    "reject": {
+      "count": 3807,
+      "bad_rate": 0.43656422379826637,
+      "share": 0.10071428571428571
+    }
+  },
+  "test_confusion_matrix_reject_vs_actual": {
+    "labels": [
+      "actual_0(정상)",
+      "actual_1(부도)"
+    ],
+    "predicted_reject_as_positive": {
+      "true_negative": 31005,
+      "false_positive": 2145,
+      "false_negative": 2988,
+      "true_positive": 1662
+    }
+  },
+  "feature_importance": {
+    "biz_city_risk_te": 0.13549353182315826,
+    "has_car": 0.06902908533811569,
+    "biz_premise_ownership_owned": 0.06432664394378662,
+    "biz_premise_ownership_norent_noown": 0.06168339401483536,
+    "industry_sector_risk_te": 0.06121636927127838,
+    "biz_operation_years": 0.05720073729753494,
+    "career_years": 0.0570671483874321,
+    "age": 0.05665168538689613,
+    "is_married": 0.054895367473363876,
+    "income_per_age": 0.054016660898923874,
+    "biz_region_risk_te": 0.052644189447164536,
+    "job_stability_ratio": 0.05219503864645958,
+    "biz_premise_ownership_rented": 0.05208127200603485,
+    "biz_location_years": 0.05108562856912613,
+    "annual_revenue_krw": 0.04935368150472641,
+    "income_log": 0.04720716178417206,
+    "revenue_volatility_synth": 0.012479382567107677,
+    "debt_to_income_synth": 0.01137296948581934
+  }
+}

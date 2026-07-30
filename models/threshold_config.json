@@ -1,0 +1,12 @@
+{
+  "t_approve": 0.5877197742462158,
+  "t_reject": 0.6263755917549133,
+  "approve_size": 32130,
+  "approve_bad_rate": 0.07861811391223156,
+  "reject_bad_rate": 0.4365079365079365,
+  "relaxation_step": 0,
+  "constraint_used": {
+    "approve_bad_rate_max": 0.08,
+    "reject_bad_rate_min": 0.2
+  }
+}

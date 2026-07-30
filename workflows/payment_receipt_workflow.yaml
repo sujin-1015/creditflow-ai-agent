@@ -1,0 +1,46 @@
+# 결제이벤트 -> 상태갱신 -> 영수증발행 -> 로그저장 파이프라인
+# Eventarc가 Pub/Sub(payment-events) 메시지를 이 워크플로우 실행(execution)으로 전달한다.
+main:
+  params: [event]
+  steps:
+    - decode_message:
+        assign:
+          - base64_data: ${event.data.message.data}
+          - decoded_data: ${text.decode(base64.decode(base64_data))}
+          - payload: ${json.decode(decoded_data)}
+
+    - log_status_update:
+        call: sys.log
+        args:
+          severity: INFO
+          text: >-
+            ${"상태 갱신: applicant_id=" + string(payload.applicant_id)
+              + " decision=" + payload.decision
+              + " status=" + payload.status}
+
+    - build_receipt:
+        assign:
+          - receipt:
+              applicant_id: ${payload.applicant_id}
+              decision: ${payload.decision}
+              status: ${payload.status}
+              tx_signature: ${payload.tx_signature}
+              explorer_url: ${payload.explorer_url}
+              approved_amount_krw: ${payload.approved_amount_krw}
+              receipt_issued_at: ${time.format(sys.now())}
+
+    - save_receipt_to_bigquery:
+        call: googleapis.bigquery.v2.tabledata.insertAll
+        args:
+          projectId: fundbridge-hackathon
+          datasetId: creditflow_agent
+          tableId: receipts
+          body:
+            rows:
+              - json: ${receipt}
+        result: bq_result
+
+    - return_result:
+        return:
+          receipt: ${receipt}
+          bigquery_insert_errors: ${map.get(bq_result, "insertErrors")}
