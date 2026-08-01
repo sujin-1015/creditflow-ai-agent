@@ -74,13 +74,20 @@ def verify_applicant(applicant_id: int) -> list[dict]:
 
 
 if __name__ == "__main__":
-    target = int(sys.argv[1]) if len(sys.argv) > 1 else None
+    args = [a for a in sys.argv[1:] if a != "--tamper"]
+    simulate_tamper = "--tamper" in sys.argv
+    target = int(args[0]) if args else None
+
     rows = _rows_with_tx(applicant_id=target)
     if not rows:
         print("tx_signature가 있는 기록이 없습니다.")
         sys.exit(0)
 
     for row in rows:
+        if simulate_tamper:
+            row = dict(row)
+            row["rationale"] = row["rationale"] + " (데모: 사후 조작된 문구)"
+            print("!! --tamper 옵션: BigQuery의 rationale을 방금 임의로 조작한 것처럼 시뮬레이션합니다 !!")
         result = verify_record(row)
         print("=" * 70)
         print(f"[{result['source_table']}] 신청자 {result['applicant_id']} / tx {result['tx_signature']}")
@@ -89,4 +96,4 @@ if __name__ == "__main__":
         print(f"  온체인 메모                    : {result['onchain_memo']}")
         print(f"  BigQuery 해시 일치              : {result['bigquery_hash_matches']}")
         print(f"  온체인 메모 해시 일치           : {result['onchain_hash_matches']}")
-        print(f"  ==> 검증 결과: {'✅ 위변조 없음' if result['verified'] else '❌ 불일치 발견'}")
+        print(f"  ==> 검증 결과: {'[PASS] 위변조 없음' if result['verified'] else '[FAIL] 불일치 발견'}")
