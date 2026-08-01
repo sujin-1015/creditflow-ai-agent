@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from google.cloud import bigquery
 
-PROJECT_ID = "fundbridge-hackathon"
+PROJECT_ID = "gc-hackathon-504210"
 DATASET_ID = "creditflow_agent"
 TABLE_ID = "loan_decisions"
 LOCATION = "asia-northeast3"
