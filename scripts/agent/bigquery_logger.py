@@ -195,6 +195,33 @@ def find_due_conditionals(min_days: int = 90) -> list[dict]:
     return [dict(row) for row in client.query(query, job_config=job_config).result()]
 
 
+def delete_decision(applicant_id: int, timestamp_iso: str) -> dict:
+    """대시보드 삭제 버튼용. 특정 심사 기록 한 건을 (applicant_id, timestamp)로 정확히 지정해 삭제한다.
+
+    BigQuery 스트리밍 버퍼 제약으로, 삽입된 지 1~2시간 안 된 행은 삭제가 거절될 수 있다 —
+    이 경우 예외를 잡아 안내 메시지를 담은 dict를 반환한다 (호출부에서 배너로 보여줌).
+    """
+    client = get_client()
+    query = f"""
+        DELETE FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`
+        WHERE applicant_id = @applicant_id AND timestamp = @ts
+    """
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("applicant_id", "INT64", applicant_id),
+            bigquery.ScalarQueryParameter("ts", "TIMESTAMP", timestamp_iso),
+        ]
+    )
+    try:
+        job = client.query(query, job_config=job_config)
+        job.result()
+        return {"ok": True, "deleted": job.num_dml_affected_rows}
+    except Exception as e:  # noqa: BLE001
+        if "streaming buffer" in str(e).lower():
+            return {"ok": False, "error": "방금 생성된 기록은 BigQuery 스트리밍 버퍼 때문에 1~2시간 후에나 삭제할 수 있습니다."}
+        return {"ok": False, "error": str(e)}
+
+
 def log_decision(record: dict) -> None:
     """payment_mock.PaymentResult(dict 형태)를 BigQuery에 한 행 적재한다."""
     table = ensure_table()

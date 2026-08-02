@@ -18,17 +18,27 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR / "scripts"))
 sys.path.insert(0, str(BASE_DIR / "scripts" / "agent"))
 
-from fastapi import FastAPI, HTTPException  # noqa: E402
-from fastapi.responses import HTMLResponse  # noqa: E402
+from fastapi import FastAPI, Form, HTTPException  # noqa: E402
+from fastapi.responses import HTMLResponse, RedirectResponse  # noqa: E402
 from google.cloud import pubsub_v1  # noqa: E402
 
 from decision import make_final_decision  # noqa: E402
 import payment_mock  # noqa: E402
-from bigquery_logger import get_client as get_bq_client, PROJECT_ID, DATASET_ID, TABLE_ID, RECEIPTS_TABLE_ID  # noqa: E402
+from bigquery_logger import (  # noqa: E402
+    get_client as get_bq_client,
+    delete_decision,
+    PROJECT_ID,
+    DATASET_ID,
+    TABLE_ID,
+    RECEIPTS_TABLE_ID,
+)
 
 app = FastAPI(title="CreditFlow Agent")
 
 PUBSUB_TOPIC = os.environ.get("PAYMENT_EVENTS_TOPIC", "payment-events")
+# 대시보드 삭제 버튼 보호용 — Cloud Run이 인증 없이 공개되어 있어서, 이 키를 아는 사람만
+# 삭제를 실행할 수 있게 최소한의 장치를 둔다 (완전한 인증은 아님, 페이지 소스에 값이 노출됨).
+ADMIN_KEY = os.environ.get("ADMIN_KEY", "")
 _publisher = None
 
 
@@ -97,6 +107,23 @@ def reevaluate_due(min_days: int = 90):
     return {"processed": len(results), "results": results}
 
 
+@app.post("/decisions/delete")
+def delete_decision_endpoint(
+    applicant_id: int = Form(...),
+    timestamp: str = Form(...),
+    key: str = Form(...),
+):
+    if not ADMIN_KEY or key != ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="삭제 권한이 없습니다.")
+
+    result = delete_decision(applicant_id, timestamp)
+    if not result["ok"]:
+        from urllib.parse import quote
+
+        return RedirectResponse(url=f"/?delete_error={quote(result['error'])}", status_code=303)
+    return RedirectResponse(url="/", status_code=303)
+
+
 def _fetch_recent(table_id: str, limit: int = 15) -> list[dict]:
     client = get_bq_client()
     order_col = "timestamp" if table_id == TABLE_ID else "receipt_issued_at"
@@ -138,9 +165,21 @@ def _tx_link(tx_signature, explorer_url) -> str:
     return f'<a class="txlink" href="{url}" target="_blank" rel="noopener">{short}</a>'
 
 
+def _delete_form_html(applicant_id, ts) -> str:
+    if not ADMIN_KEY or not ts:
+        return '<span class="muted">-</span>'
+    ts_iso = ts.isoformat()
+    return f"""<form method="post" action="/decisions/delete" onsubmit="return confirm('신청자 {applicant_id}번 기록을 삭제할까요? 되돌릴 수 없습니다.');" style="display:inline">
+  <input type="hidden" name="applicant_id" value="{applicant_id}">
+  <input type="hidden" name="timestamp" value="{ts_iso}">
+  <input type="hidden" name="key" value="{ADMIN_KEY}">
+  <button type="submit" class="del-btn">삭제</button>
+</form>"""
+
+
 def _decisions_table_html(records: list[dict]) -> str:
     if not records:
-        return '<tr><td colspan="6" class="empty">아직 심사 기록이 없습니다.</td></tr>'
+        return '<tr><td colspan="7" class="empty">아직 심사 기록이 없습니다.</td></tr>'
     rows = []
     for r in records:
         amount = r.get("devnet_test_amount")
@@ -156,13 +195,14 @@ def _decisions_table_html(records: list[dict]) -> str:
             f'<td class="mono">{amount_str}</td>'
             f"<td>{_tx_link(r.get('tx_signature'), r.get('explorer_url'))}</td>"
             f'<td class="muted">{ts_str}</td>'
+            f"<td>{_delete_form_html(r.get('applicant_id'), ts)}</td>"
             "</tr>"
         )
     return "".join(rows)
 
 
 @app.get("/", response_class=HTMLResponse)
-def status_page():
+def status_page(delete_error: str = None):
     try:
         decisions = _fetch_recent(TABLE_ID)
         summary = _fetch_summary()
@@ -181,6 +221,8 @@ def status_page():
     error_banner = (
         f'<div class="banner">⚠ BigQuery 조회 실패: {fetch_error}</div>' if fetch_error else ""
     )
+    if delete_error:
+        error_banner += f'<div class="banner">⚠ 삭제 실패: {delete_error}</div>'
 
     return f"""
 <!doctype html>
@@ -251,6 +293,12 @@ def status_page():
   .txlink {{ color: var(--accent); text-decoration: none; font-variant-numeric: tabular-nums; }}
   .txlink:hover {{ text-decoration: underline; }}
 
+  .del-btn {{
+    background: var(--bad-soft); color: var(--bad); border: 1px solid transparent;
+    border-radius: 6px; padding: 4px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer;
+  }}
+  .del-btn:hover {{ border-color: var(--bad); }}
+
   .action-hint {{ font-size: 12.5px; color: var(--ink-2); }}
   code {{ background: var(--surface-2); padding: 1px 6px; border-radius: 4px; font-size: 12px; }}
 
@@ -293,7 +341,7 @@ def status_page():
       </div>
       <div style="overflow-x:auto">
         <table>
-          <thead><tr><th>신청자 ID</th><th>판정</th><th>대출한도(KRW)</th><th>devnet 집행액</th><th>tx</th><th>시각</th></tr></thead>
+          <thead><tr><th>신청자 ID</th><th>판정</th><th>대출한도(KRW)</th><th>devnet 집행액</th><th>tx</th><th>시각</th><th></th></tr></thead>
           <tbody>{_decisions_table_html(decisions)}</tbody>
         </table>
       </div>
@@ -305,7 +353,7 @@ def status_page():
       </div>
       <div class="action-hint">
         <code>POST /underwrite/{{applicant_id}}</code> 호출 시 정량+정성+정책 종합 판정 후 승인 건은 실제 devnet USDC 집행까지 자동 수행됩니다.<br>
-        예: <code>curl -X POST -d '' https://creditflow-agent-3632684946.asia-northeast3.run.app/underwrite/10736</code>
+        예: <code>curl.exe -s -X POST -d "{{}}" https://creditflow-agent-46585987317.asia-northeast3.run.app/underwrite/10736</code>
       </div>
     </section>
   </div>
