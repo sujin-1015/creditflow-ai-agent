@@ -14,3 +14,4 @@ lightgbm
 solders
 solana
 base58
+python-multipart
