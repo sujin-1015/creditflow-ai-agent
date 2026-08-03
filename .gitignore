@@ -15,3 +15,6 @@ processed/
 # Claude Code 로컬 설정 (개인 환경용, 공개 repo에 불필요)
 .claude/
 
+# 발표용 PPT 초안 (GitHub에 올리지 않음)
+deck/
+
