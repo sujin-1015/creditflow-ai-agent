@@ -31,6 +31,7 @@ from bigquery_logger import (  # noqa: E402
     DATASET_ID,
     TABLE_ID,
     RECEIPTS_TABLE_ID,
+    REEVAL_TABLE_ID,
 )
 
 app = FastAPI(title="CreditFlow Agent")
@@ -124,9 +125,16 @@ def delete_decision_endpoint(
     return RedirectResponse(url="/", status_code=303)
 
 
+_ORDER_COL_BY_TABLE = {
+    TABLE_ID: "timestamp",
+    RECEIPTS_TABLE_ID: "receipt_issued_at",
+    REEVAL_TABLE_ID: "reevaluated_at",
+}
+
+
 def _fetch_recent(table_id: str, limit: int = 15) -> list[dict]:
     client = get_bq_client()
-    order_col = "timestamp" if table_id == TABLE_ID else "receipt_issued_at"
+    order_col = _ORDER_COL_BY_TABLE.get(table_id, "timestamp")
     query = f"SELECT * FROM `{PROJECT_ID}.{DATASET_ID}.{table_id}` ORDER BY {order_col} DESC LIMIT {limit}"
     return [dict(row) for row in client.query(query).result()]
 
@@ -201,6 +209,35 @@ def _decisions_table_html(records: list[dict]) -> str:
     return "".join(rows)
 
 
+def _reeval_table_html(records: list[dict]) -> str:
+    if not records:
+        return '<tr><td colspan="6" class="empty">아직 재심사 기록이 없습니다.</td></tr>'
+    rows = []
+    for r in records:
+        upgraded = r.get("upgraded")
+        result_badge = (
+            '<span class="badge badge-approve">승인 상향</span>'
+            if upgraded
+            else '<span class="badge badge-neutral">유지</span>'
+        )
+        amount = r.get("additional_amount")
+        currency = r.get("currency") or ""
+        amount_str = f"{amount:.2f} {currency}" if amount else '<span class="muted">-</span>'
+        ts = r.get("reevaluated_at")
+        ts_str = ts.strftime("%Y-%m-%d %H:%M UTC") if ts else "-"
+        rows.append(
+            "<tr>"
+            f'<td class="mono">{r.get("applicant_id", "-")}</td>'
+            f'<td>{_badge(r.get("original_decision"))} → {_badge(r.get("new_decision"))}</td>'
+            f"<td>{result_badge}</td>"
+            f'<td class="mono">{amount_str}</td>'
+            f"<td>{_tx_link(r.get('tx_signature'), r.get('explorer_url'))}</td>"
+            f'<td class="muted">{ts_str}</td>'
+            "</tr>"
+        )
+    return "".join(rows)
+
+
 @app.get("/", response_class=HTMLResponse)
 def status_page(delete_error: str = None):
     try:
@@ -209,6 +246,11 @@ def status_page(delete_error: str = None):
         fetch_error = None
     except Exception as e:  # noqa: BLE001
         decisions, summary, fetch_error = [], {}, str(e)
+
+    try:
+        reevaluations = _fetch_recent(REEVAL_TABLE_ID)
+    except Exception:  # noqa: BLE001
+        reevaluations = []
 
     total = summary.get("total") or 0
     approved = summary.get("approved") or 0
@@ -343,6 +385,19 @@ def status_page(delete_error: str = None):
         <table>
           <thead><tr><th>신청자 ID</th><th>판정</th><th>대출한도(KRW)</th><th>devnet 집행액</th><th>tx</th><th>시각</th><th></th></tr></thead>
           <tbody>{_decisions_table_html(decisions)}</tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <div class="card-title">재심사 결과</div>
+        <div class="card-note">조건부승인 건의 자동 재심사(Cloud Scheduler) 처리 이력</div>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>신청자 ID</th><th>판정 변화</th><th>결과</th><th>추가 집행액</th><th>tx</th><th>재심사 시각</th></tr></thead>
+          <tbody>{_reeval_table_html(reevaluations)}</tbody>
         </table>
       </div>
     </section>

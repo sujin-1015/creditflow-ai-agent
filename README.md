@@ -25,8 +25,11 @@ POST /underwrite/{applicant_id}  (Cloud Run, FastAPI)
          → Eventarc 트리거 → Cloud Workflow → BigQuery receipts
 
 Cloud Scheduler (매일 03:00 KST)
-   └─ POST /jobs/reevaluate-due → 조건부 건 자동 재심사 → BigQuery reevaluations
+   └─ POST /jobs/reevaluate-due → 조건부승인 건 자동 조회(90일 경과 + 미재심사)
+         → 합성 후속 텍스트가 준비된 건만 실제 재심사 처리 → BigQuery reevaluations
 ```
+
+> "자동 조회"까지는 스케줄러가 매일 실제로 수행한다. "재심사 처리"는 PoC 범위상 후속 텍스트를 준비해둔 신청자 1명(61059)에 한해 검증 완료했다 — 상세는 아래 [PoC 범위 안내](#poc-범위-안내-알려진-제약) 참고.
 
 ---
 
@@ -146,7 +149,7 @@ gcloud run deploy creditflow-agent \
 | `GET /health` | 헬스 체크 |
 | `GET /` | 심사 대시보드 (읽기 전용) |
 | `POST /underwrite/{applicant_id}` | 판정 + devnet 집행 실행 |
-| `POST /jobs/reevaluate-due?min_days=90` | 조건부승인 건 자동 재심사 (Cloud Scheduler가 호출) |
+| `POST /jobs/reevaluate-due?min_days=90` | 조건부승인 건 자동 조회 (Cloud Scheduler가 호출) — 실제 재심사 처리는 61059번 한정, [PoC 범위 안내](#poc-범위-안내-알려진-제약) 참고 |
 | `POST /decisions/delete` | 대시보드에서 특정 기록 삭제 (관리용, 보호키 필요) |
 
 예시:
