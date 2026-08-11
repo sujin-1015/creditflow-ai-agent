@@ -222,6 +222,33 @@ def delete_decision(applicant_id: int, timestamp_iso: str) -> dict:
         return {"ok": False, "error": str(e)}
 
 
+def find_recent_execution(applicant_id: int, min_minutes: int = 10) -> dict | None:
+    """최근 min_minutes 이내 같은 신청자의 EXECUTED 레코드가 있으면 반환한다 (/underwrite idempotency 가드용).
+
+    BigQuery 스트리밍 버퍼 지연 때문에 완벽한 락은 아니다 — 방금 insert된 행이 아직 쿼리에
+    안 잡히는 짧은 race window가 있을 수 있음 (best-effort 가드).
+    """
+    ensure_table()
+    client = get_client()
+    query = f"""
+        SELECT *
+        FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`
+        WHERE applicant_id = @applicant_id
+          AND status = 'EXECUTED'
+          AND TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), timestamp, MINUTE) < @min_minutes
+        ORDER BY timestamp DESC
+        LIMIT 1
+    """
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("applicant_id", "INT64", applicant_id),
+            bigquery.ScalarQueryParameter("min_minutes", "INT64", min_minutes),
+        ]
+    )
+    rows = list(client.query(query, job_config=job_config).result())
+    return dict(rows[0]) if rows else None
+
+
 def log_decision(record: dict) -> None:
     """payment_mock.PaymentResult(dict 형태)를 BigQuery에 한 행 적재한다."""
     table = ensure_table()

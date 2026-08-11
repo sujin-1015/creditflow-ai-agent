@@ -27,6 +27,7 @@ import payment_mock  # noqa: E402
 from bigquery_logger import (  # noqa: E402
     get_client as get_bq_client,
     delete_decision,
+    find_recent_execution,
     PROJECT_ID,
     DATASET_ID,
     TABLE_ID,
@@ -37,6 +38,10 @@ from bigquery_logger import (  # noqa: E402
 app = FastAPI(title="CreditFlow Agent")
 
 PUBSUB_TOPIC = os.environ.get("PAYMENT_EVENTS_TOPIC", "payment-events")
+# 같은 신청자를 최근 N분 내 중복 호출하면(재시도/실수 재클릭) devnet 송금이 두 번 나가는 걸 막는다.
+# BigQuery 스트리밍 버퍼 지연으로 완벽하진 않음(best-effort) — 초 단위로 거의 동시에 들어오는
+# 요청까지는 못 막지만, 실제로 겪은 문제(수동 재실행/재시도 스크립트)는 이 정도로 충분히 막힌다.
+UNDERWRITE_IDEMPOTENCY_MINUTES = int(os.environ.get("UNDERWRITE_IDEMPOTENCY_MINUTES", "10"))
 # 대시보드 삭제 버튼 보호용 — Cloud Run이 인증 없이 공개되어 있어서, 이 키를 아는 사람만
 # 삭제를 실행할 수 있게 최소한의 장치를 둔다 (완전한 인증은 아님, 페이지 소스에 값이 노출됨).
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "")
@@ -57,6 +62,26 @@ def health():
 
 @app.post("/underwrite/{applicant_id}")
 def underwrite(applicant_id: int):
+    try:
+        existing = find_recent_execution(applicant_id, min_minutes=UNDERWRITE_IDEMPOTENCY_MINUTES)
+    except Exception:  # noqa: BLE001
+        # BigQuery 조회 자체가 실패하면 가드를 건너뛰고 정상 진행한다 (가용성 우선의 best-effort 가드).
+        existing = None
+
+    if existing:
+        ts = existing.get("timestamp")
+        return {
+            "applicant_id": applicant_id,
+            "decision": existing.get("decision"),
+            "status": existing.get("status"),
+            "tx_signature": existing.get("tx_signature"),
+            "explorer_url": existing.get("explorer_url"),
+            "approved_amount_krw": existing.get("requested_loan_krw"),
+            "decision_reasoning": existing.get("rationale"),
+            "idempotent_replay": True,
+            "original_timestamp": ts.isoformat() if ts else None,
+        }
+
     try:
         decision_result = make_final_decision(applicant_id)
     except Exception as e:  # noqa: BLE001
@@ -177,10 +202,19 @@ def _delete_form_html(applicant_id, ts) -> str:
     if not ADMIN_KEY or not ts:
         return '<span class="muted">-</span>'
     ts_iso = ts.isoformat()
-    return f"""<form method="post" action="/decisions/delete" onsubmit="return confirm('신청자 {applicant_id}번 기록을 삭제할까요? 되돌릴 수 없습니다.');" style="display:inline">
+    # ADMIN_KEY를 HTML에 값으로 박아두지 않는다 — view-source로 그대로 유출되는 걸 막기 위해
+    # 클릭 시점에 prompt()로 입력받아 hidden input에 채운 뒤에만 제출한다.
+    onsubmit = (
+        f"if(!confirm('신청자 {applicant_id}번 기록을 삭제할까요? 되돌릴 수 없습니다.')) return false; "
+        "var k = prompt('관리자 키를 입력하세요'); "
+        "if (!k) return false; "
+        "this.key.value = k; "
+        "return true;"
+    )
+    return f"""<form method="post" action="/decisions/delete" onsubmit="{onsubmit}" style="display:inline">
   <input type="hidden" name="applicant_id" value="{applicant_id}">
   <input type="hidden" name="timestamp" value="{ts_iso}">
-  <input type="hidden" name="key" value="{ADMIN_KEY}">
+  <input type="hidden" name="key" value="">
   <button type="submit" class="del-btn">삭제</button>
 </form>"""
 
