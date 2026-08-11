@@ -11,6 +11,7 @@ numpy
 scikit-learn
 xgboost
 lightgbm
+shap
 solders
 solana
 base58

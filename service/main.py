@@ -117,6 +117,7 @@ def underwrite(applicant_id: int):
         "default_probability": decision_result.default_probability,
         "adjustment_applied": decision_result.adjustment_applied,
         "decision_reasoning": decision_result.decision_reasoning,
+        "feature_contributions": decision_result.feature_contributions,
     }
 
 

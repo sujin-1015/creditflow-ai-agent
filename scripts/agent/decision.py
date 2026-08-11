@@ -15,7 +15,7 @@ from typing import Optional
 from google.genai import types
 
 from business_text import get_business_description, summarize_business_text
-from data_tools import get_applicant_data, predict_risk
+from data_tools import explain_prediction, get_applicant_data, predict_risk
 from gemini_client import DECISION_MODEL, get_client, with_rate_limit_retry
 from rag import PolicyRAG
 
@@ -44,6 +44,7 @@ class FinalDecisionResult:
     approved_amount_krw: int
     business_summary: dict
     policy_citations: list = field(default_factory=list)
+    feature_contributions: list = field(default_factory=list)
 
 
 def record_decision(
@@ -93,6 +94,7 @@ DECISION_PROMPT = """당신은 소상공인 소액대출 심사 에이전트입�
 
 def make_final_decision(applicant_id: int) -> FinalDecisionResult:
     quant = predict_risk(applicant_id)
+    explanation = explain_prediction(applicant_id)
     applicant = get_applicant_data(applicant_id)
     biz_text = get_business_description(applicant_id)
     biz_summary = summarize_business_text(biz_text)
@@ -150,6 +152,7 @@ def make_final_decision(applicant_id: int) -> FinalDecisionResult:
         approved_amount_krw=loan_amount,
         business_summary=biz_summary.model_dump(),
         policy_citations=[h["title"] for h in policy_hits],
+        feature_contributions=explanation.get("top_contributors", []),
     )
 
 
@@ -166,3 +169,4 @@ if __name__ == "__main__":
         print(f"승인 금액: {result.approved_amount_krw:,}원")
         print(f"근거: {result.decision_reasoning}")
         print(f"참조 정책: {result.policy_citations}")
+        print(f"주요 기여 피처(SHAP): {result.feature_contributions}")

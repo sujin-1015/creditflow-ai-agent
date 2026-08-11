@@ -8,7 +8,9 @@ import json
 from pathlib import Path
 
 import joblib
+import numpy as np
 import pandas as pd
+import shap
 
 AGENT_DIR = Path(__file__).resolve().parent
 BASE_DIR = AGENT_DIR.parent.parent
@@ -26,6 +28,7 @@ FEATURE_COLUMNS = [
 _model = None
 _thresholds = None
 _all_rows = None
+_explainer = None
 
 
 def _load_state():
@@ -38,6 +41,24 @@ def _load_state():
             ignore_index=True,
         )
     return _model, _thresholds, _all_rows
+
+
+def _get_explainer(model) -> shap.TreeExplainer:
+    global _explainer
+    if _explainer is None:
+        _explainer = shap.TreeExplainer(model)
+    return _explainer
+
+
+def _to_native(value):
+    """numpy 스칼라(bool_/integer/floating)를 JSON 직렬화 가능한 파이썬 기본 타입으로 변환."""
+    if isinstance(value, np.bool_):
+        return bool(value)
+    if isinstance(value, np.integer):
+        return int(value)
+    if isinstance(value, np.floating):
+        return float(value)
+    return value
 
 
 def get_applicant_data(applicant_id: int) -> dict:
@@ -88,7 +109,49 @@ def predict_risk(applicant_id: int) -> dict:
     }
 
 
+def explain_prediction(applicant_id: int, top_k: int = 5) -> dict:
+    """SHAP으로 이 신청자의 부도확률 예측에 각 피처가 얼마나/어느 방향으로 기여했는지 설명한다.
+
+    전체 피처 중요도(model_report.md)와 달리, 이 신청자 한 명의 예측치를 개별적으로 분해한
+    값이다. contribution이 양수면 그 피처가 부도확률을 높이는 방향으로, 음수면 낮추는 방향으로
+    작용했다는 뜻이다 (단위: log-odds, 확률 퍼센트포인트가 아님).
+
+    Args:
+        applicant_id: 신청자 고유 ID.
+        top_k: 반환할 상위 기여 피처 개수.
+
+    Returns:
+        base_value(전체 평균 기준 log-odds), predicted_probability, top_contributors
+        (기여도 절대값 기준 상위 top_k개, feature/value/contribution)를 담은 dict.
+    """
+    model, _, all_rows = _load_state()
+    row = all_rows[all_rows["id"] == applicant_id]
+    if row.empty:
+        return {"error": f"applicant_id {applicant_id} 를 찾을 수 없습니다."}
+
+    X = row[FEATURE_COLUMNS]
+    explanation = _get_explainer(model)(X)
+
+    contributors = [
+        {
+            "feature": feature,
+            "value": _to_native(X.iloc[0][feature]),
+            "contribution": round(float(shap_value), 4),
+        }
+        for feature, shap_value in zip(FEATURE_COLUMNS, explanation.values[0])
+    ]
+    contributors.sort(key=lambda c: abs(c["contribution"]), reverse=True)
+
+    return {
+        "applicant_id": applicant_id,
+        "base_value": round(float(explanation.base_values[0]), 4),
+        "predicted_probability": float(model.predict_proba(X)[:, 1][0]),
+        "top_contributors": contributors[:top_k],
+    }
+
+
 if __name__ == "__main__":
     sample_id = 10736
     print(get_applicant_data(sample_id))
     print(predict_risk(sample_id))
+    print(explain_prediction(sample_id))
