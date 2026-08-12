@@ -555,12 +555,7 @@ def status_page(delete_error: str = None):
 
   <script>
     function getDemoKey() {{
-      let k = sessionStorage.getItem('demoKey');
-      if (!k) {{
-        k = prompt('데모 키를 입력하세요');
-        if (k) sessionStorage.setItem('demoKey', k);
-      }}
-      return k;
+      return prompt('데모 키를 입력하세요');
     }}
 
     async function refreshLiveRegion() {{
@@ -583,7 +578,6 @@ def status_page(delete_error: str = None):
       try {{
         const res = await fetch('/demo/underwrite', {{method: 'POST', body: body}});
         if (res.status === 403) {{
-          sessionStorage.removeItem('demoKey');
           statusEl.textContent = '키가 틀렸습니다. 다시 시도해 주세요.';
           return;
         }}
