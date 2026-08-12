@@ -9,6 +9,7 @@ GET /
     최근 심사 결과를 BigQuery에서 조회해 보여주는 간단한 상태 페이지 (라이브 데모 URL).
 """
 
+import html
 import json
 import os
 import sys
@@ -24,6 +25,8 @@ from google.cloud import pubsub_v1  # noqa: E402
 
 from decision import make_final_decision  # noqa: E402
 import payment_mock  # noqa: E402
+import live_state  # noqa: E402
+from business_text import SAMPLE_BUSINESS_DESCRIPTIONS  # noqa: E402
 from bigquery_logger import (  # noqa: E402
     get_client as get_bq_client,
     delete_decision,
@@ -42,9 +45,10 @@ PUBSUB_TOPIC = os.environ.get("PAYMENT_EVENTS_TOPIC", "payment-events")
 # BigQuery 스트리밍 버퍼 지연으로 완벽하진 않음(best-effort) — 초 단위로 거의 동시에 들어오는
 # 요청까지는 못 막지만, 실제로 겪은 문제(수동 재실행/재시도 스크립트)는 이 정도로 충분히 막힌다.
 UNDERWRITE_IDEMPOTENCY_MINUTES = int(os.environ.get("UNDERWRITE_IDEMPOTENCY_MINUTES", "10"))
-# 대시보드 삭제 버튼 보호용 — Cloud Run이 인증 없이 공개되어 있어서, 이 키를 아는 사람만
-# 삭제를 실행할 수 있게 최소한의 장치를 둔다 (완전한 인증은 아님, 페이지 소스에 값이 노출됨).
-ADMIN_KEY = os.environ.get("ADMIN_KEY", "")
+# 대시보드 삭제 버튼 + 데모용 심사 요청 버튼 보호용 — Cloud Run이 인증 없이 공개되어 있어서,
+# 이 키를 아는 사람(발표자)만 실행할 수 있게 최소한의 장치를 둔다 (완전한 인증은 아님).
+# 클릭 시점에 prompt()로 입력받아 서버로 보내며, HTML에는 값이 박히지 않는다.
+DEMO_KEY = os.environ.get("DEMO_KEY", "")
 _publisher = None
 
 
@@ -83,42 +87,64 @@ def underwrite(applicant_id: int):
         }
 
     try:
-        decision_result = make_final_decision(applicant_id)
-    except Exception as e:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=f"판정 실패: {e}")
-
-    payment_result = payment_mock.disburse_loan(
-        applicant_id=applicant_id,
-        decision=decision_result.final_decision,
-        requested_loan_krw=decision_result.approved_amount_krw,
-        rationale=decision_result.decision_reasoning,
-    )
-
-    event = {
-        "applicant_id": applicant_id,
-        "decision": decision_result.final_decision,
-        "status": payment_result.status,
-        "tx_signature": payment_result.tx_signature,
-        "explorer_url": payment_result.explorer_url,
-        "approved_amount_krw": decision_result.approved_amount_krw,
-    }
+        live_state.mark_in_progress(applicant_id)
+    except Exception:  # noqa: BLE001
+        pass  # 대시보드 "심사 중" 표시는 부가 기능 — 실패해도 심사 흐름은 계속 진행
 
     try:
-        publisher = get_publisher()
-        topic_path = publisher.topic_path(PROJECT_ID, PUBSUB_TOPIC)
-        publisher.publish(topic_path, json.dumps(event, ensure_ascii=False).encode("utf-8")).result(timeout=10)
-    except Exception as e:  # noqa: BLE001
-        # 이벤트 발행 실패해도 심사/집행 자체는 이미 완료된 상태이므로 응답은 정상 반환
-        event["pubsub_error"] = str(e)
+        try:
+            decision_result = make_final_decision(applicant_id)
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(status_code=500, detail=f"판정 실패: {e}")
 
-    return {
-        **event,
-        "quant_tier": decision_result.quant_tier,
-        "default_probability": decision_result.default_probability,
-        "adjustment_applied": decision_result.adjustment_applied,
-        "decision_reasoning": decision_result.decision_reasoning,
-        "feature_contributions": decision_result.feature_contributions,
-    }
+        payment_result = payment_mock.disburse_loan(
+            applicant_id=applicant_id,
+            decision=decision_result.final_decision,
+            requested_loan_krw=decision_result.approved_amount_krw,
+            rationale=decision_result.decision_reasoning,
+        )
+
+        event = {
+            "applicant_id": applicant_id,
+            "decision": decision_result.final_decision,
+            "status": payment_result.status,
+            "tx_signature": payment_result.tx_signature,
+            "explorer_url": payment_result.explorer_url,
+            "approved_amount_krw": decision_result.approved_amount_krw,
+        }
+
+        try:
+            publisher = get_publisher()
+            topic_path = publisher.topic_path(PROJECT_ID, PUBSUB_TOPIC)
+            publisher.publish(topic_path, json.dumps(event, ensure_ascii=False).encode("utf-8")).result(timeout=10)
+        except Exception as e:  # noqa: BLE001
+            # 이벤트 발행 실패해도 심사/집행 자체는 이미 완료된 상태이므로 응답은 정상 반환
+            event["pubsub_error"] = str(e)
+
+        return {
+            **event,
+            "quant_tier": decision_result.quant_tier,
+            "default_probability": decision_result.default_probability,
+            "adjustment_applied": decision_result.adjustment_applied,
+            "decision_reasoning": decision_result.decision_reasoning,
+            "feature_contributions": decision_result.feature_contributions,
+        }
+    finally:
+        try:
+            live_state.clear_in_progress(applicant_id)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+@app.post("/demo/underwrite")
+def demo_underwrite(applicant_id: int = Form(...), key: str = Form(...)):
+    """대시보드의 "심사 요청" 버튼 전용 진입점 — DEMO_KEY로 게이트된 /underwrite 래퍼.
+
+    /underwrite/{applicant_id} 자체는 curl 데모/외부 연동 하위호환을 위해 그대로 공개로 둔다.
+    """
+    if not DEMO_KEY or key != DEMO_KEY:
+        raise HTTPException(status_code=403, detail="진행 권한이 없습니다.")
+    return underwrite(applicant_id)
 
 
 @app.post("/jobs/reevaluate-due")
@@ -140,7 +166,7 @@ def delete_decision_endpoint(
     timestamp: str = Form(...),
     key: str = Form(...),
 ):
-    if not ADMIN_KEY or key != ADMIN_KEY:
+    if not DEMO_KEY or key != DEMO_KEY:
         raise HTTPException(status_code=403, detail="삭제 권한이 없습니다.")
 
     result = delete_decision(applicant_id, timestamp)
@@ -200,14 +226,14 @@ def _tx_link(tx_signature, explorer_url) -> str:
 
 
 def _delete_form_html(applicant_id, ts) -> str:
-    if not ADMIN_KEY or not ts:
+    if not DEMO_KEY or not ts:
         return '<span class="muted">-</span>'
     ts_iso = ts.isoformat()
-    # ADMIN_KEY를 HTML에 값으로 박아두지 않는다 — view-source로 그대로 유출되는 걸 막기 위해
+    # DEMO_KEY를 HTML에 값으로 박아두지 않는다 — view-source로 그대로 유출되는 걸 막기 위해
     # 클릭 시점에 prompt()로 입력받아 hidden input에 채운 뒤에만 제출한다.
     onsubmit = (
         f"if(!confirm('신청자 {applicant_id}번 기록을 삭제할까요? 되돌릴 수 없습니다.')) return false; "
-        "var k = prompt('관리자 키를 입력하세요'); "
+        "var k = getDemoKey(); "
         "if (!k) return false; "
         "this.key.value = k; "
         "return true;"
@@ -273,20 +299,36 @@ def _reeval_table_html(records: list[dict]) -> str:
     return "".join(rows)
 
 
-@app.get("/", response_class=HTMLResponse)
-def status_page(delete_error: str = None):
-    try:
-        decisions = _fetch_recent(TABLE_ID)
-        summary = _fetch_summary()
-        fetch_error = None
-    except Exception as e:  # noqa: BLE001
-        decisions, summary, fetch_error = [], {}, str(e)
+def _in_progress_html(in_progress: list[dict]) -> str:
+    if not in_progress:
+        return ""
+    items = "".join(
+        f'<div class="progress-item">⏳ 신청자 <span class="mono">{p.get("applicant_id")}</span>번 심사 중…</div>'
+        for p in in_progress
+    )
+    return f'<div class="progress-banner">{items}</div>'
 
-    try:
-        reevaluations = _fetch_recent(REEVAL_TABLE_ID)
-    except Exception:  # noqa: BLE001
-        reevaluations = []
 
+def _applicant_options_html() -> str:
+    options = []
+    for aid, text in SAMPLE_BUSINESS_DESCRIPTIONS.items():
+        label = html.escape(text[:24].strip())
+        options.append(f'<option value="{aid}">{aid} — {label}…</option>')
+    return "".join(options)
+
+
+def _render_live_region(
+    decisions: list[dict],
+    summary: dict,
+    reevaluations: list[dict],
+    in_progress: list[dict],
+    fetch_error: str = None,
+    delete_error: str = None,
+) -> str:
+    """폴링으로 계속 갱신되는 대시보드 영역(KPI/최근 심사/재심사)을 렌더링한다.
+
+    GET / (최초 로드)와 GET /live-region (2.5초 폴링) 양쪽에서 동일하게 사용한다.
+    """
     total = summary.get("total") or 0
     approved = summary.get("approved") or 0
     conditional = summary.get("conditional") or 0
@@ -300,6 +342,88 @@ def status_page(delete_error: str = None):
     )
     if delete_error:
         error_banner += f'<div class="banner">⚠ 삭제 실패: {delete_error}</div>'
+
+    return f"""
+    {error_banner}
+    {_in_progress_html(in_progress)}
+
+    <section class="kpi-row">
+      <div class="kpi">
+        <div class="kpi-label">총 심사 건수</div>
+        <div class="kpi-value">{total}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">승인율</div>
+        <div class="kpi-value accent">{approval_rate}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">온체인 집행 건수</div>
+        <div class="kpi-value">{executed}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">누적 집행액 (devnet)</div>
+        <div class="kpi-value">{total_disbursed:.2f} USDC</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <div class="card-title">최근 심사 결과</div>
+        <div class="card-note">승인 {approved} · 조건부 {conditional} · 거절 {rejected}</div>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>신청자 ID</th><th>판정</th><th>대출한도(KRW)</th><th>devnet 집행액</th><th>tx</th><th>시각</th><th></th></tr></thead>
+          <tbody>{_decisions_table_html(decisions)}</tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <div class="card-title">재심사 결과</div>
+        <div class="card-note">조건부승인 건의 자동 재심사(Cloud Scheduler) 처리 이력</div>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>신청자 ID</th><th>판정 변화</th><th>결과</th><th>추가 집행액</th><th>tx</th><th>재심사 시각</th></tr></thead>
+          <tbody>{_reeval_table_html(reevaluations)}</tbody>
+        </table>
+      </div>
+    </section>
+    """
+
+
+def _load_dashboard_data(delete_error: str = None) -> str:
+    try:
+        decisions = _fetch_recent(TABLE_ID)
+        summary = _fetch_summary()
+        fetch_error = None
+    except Exception as e:  # noqa: BLE001
+        decisions, summary, fetch_error = [], {}, str(e)
+
+    try:
+        reevaluations = _fetch_recent(REEVAL_TABLE_ID)
+    except Exception:  # noqa: BLE001
+        reevaluations = []
+
+    try:
+        in_progress = live_state.list_in_progress()
+    except Exception:  # noqa: BLE001
+        in_progress = []
+
+    return _render_live_region(decisions, summary, reevaluations, in_progress, fetch_error, delete_error)
+
+
+@app.get("/live-region", response_class=HTMLResponse)
+def live_region():
+    """대시보드가 2.5초마다 폴링하는 조각 HTML — 다른 접속자가 켜둔 화면에도 "심사 중" 상태가 뜨게 한다."""
+    return _load_dashboard_data()
+
+
+@app.get("/", response_class=HTMLResponse)
+def status_page(delete_error: str = None):
+    live_region_html = _load_dashboard_data(delete_error)
 
     return f"""
 <!doctype html>
@@ -379,6 +503,24 @@ def status_page(delete_error: str = None):
   .action-hint {{ font-size: 12.5px; color: var(--ink-2); }}
   code {{ background: var(--surface-2); padding: 1px 6px; border-radius: 4px; font-size: 12px; }}
 
+  .progress-banner {{
+    background: var(--accent-soft); border-radius: 8px; padding: 10px 14px;
+    display: flex; flex-direction: column; gap: 4px;
+  }}
+  .progress-item {{ color: var(--accent); font-size: 13px; font-weight: 600; }}
+
+  .demo-form {{ display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }}
+  .demo-form select {{
+    background: var(--surface-2); color: var(--ink); border: 1px solid var(--border);
+    border-radius: 6px; padding: 7px 10px; font-size: 13px; max-width: 320px;
+  }}
+  .run-btn {{
+    background: var(--accent); color: #fff; border: none; border-radius: 6px;
+    padding: 7px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }}
+  .run-btn:hover {{ opacity: 0.9; }}
+  .demo-status {{ font-size: 12.5px; color: var(--ink-2); }}
+
   @media (max-width: 720px) {{ .kpi-row {{ grid-template-columns: repeat(2, 1fr); }} }}
 </style>
 </head>
@@ -390,63 +532,75 @@ def status_page(delete_error: str = None):
       <div class="subtitle">Gemini 판정 + Solana devnet 자동 집행 결과를 실시간으로 조회합니다 (읽기 전용)</div>
     </header>
 
-    {error_banner}
-
-    <section class="kpi-row">
-      <div class="kpi">
-        <div class="kpi-label">총 심사 건수</div>
-        <div class="kpi-value">{total}</div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-label">승인율</div>
-        <div class="kpi-value accent">{approval_rate}</div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-label">온체인 집행 건수</div>
-        <div class="kpi-value">{executed}</div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-label">누적 집행액 (devnet)</div>
-        <div class="kpi-value">{total_disbursed:.2f} USDC</div>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="card-head">
-        <div class="card-title">최근 심사 결과</div>
-        <div class="card-note">승인 {approved} · 조건부 {conditional} · 거절 {rejected}</div>
-      </div>
-      <div style="overflow-x:auto">
-        <table>
-          <thead><tr><th>신청자 ID</th><th>판정</th><th>대출한도(KRW)</th><th>devnet 집행액</th><th>tx</th><th>시각</th><th></th></tr></thead>
-          <tbody>{_decisions_table_html(decisions)}</tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="card-head">
-        <div class="card-title">재심사 결과</div>
-        <div class="card-note">조건부승인 건의 자동 재심사(Cloud Scheduler) 처리 이력</div>
-      </div>
-      <div style="overflow-x:auto">
-        <table>
-          <thead><tr><th>신청자 ID</th><th>판정 변화</th><th>결과</th><th>추가 집행액</th><th>tx</th><th>재심사 시각</th></tr></thead>
-          <tbody>{_reeval_table_html(reevaluations)}</tbody>
-        </table>
-      </div>
-    </section>
+    <div id="live-region">{live_region_html}</div>
 
     <section class="card">
       <div class="card-head">
         <div class="card-title">새 심사 실행</div>
+        <div class="card-note">진행 키 필요 (발표자 전용)</div>
       </div>
-      <div class="action-hint">
-        <code>POST /underwrite/{{applicant_id}}</code> 호출 시 정량+정성+정책 종합 판정 후 승인 건은 실제 devnet USDC 집행까지 자동 수행됩니다.<br>
+      <form id="demo-underwrite-form" class="demo-form">
+        <select name="applicant_id" id="demo-applicant-select">
+          {_applicant_options_html()}
+        </select>
+        <button type="submit" class="run-btn">심사 요청</button>
+        <span id="demo-status" class="demo-status"></span>
+      </form>
+      <div class="action-hint" style="margin-top:10px">
+        또는 API로 직접 호출: <code>POST /underwrite/{{applicant_id}}</code> (판정 후 승인 건은 devnet USDC 집행까지 자동 수행)<br>
         예: <code>curl.exe -s -X POST -d "{{}}" https://creditflow-agent-46585987317.asia-northeast3.run.app/underwrite/10736</code>
       </div>
     </section>
   </div>
+
+  <script>
+    function getDemoKey() {{
+      let k = sessionStorage.getItem('demoKey');
+      if (!k) {{
+        k = prompt('데모 키를 입력하세요');
+        if (k) sessionStorage.setItem('demoKey', k);
+      }}
+      return k;
+    }}
+
+    async function refreshLiveRegion() {{
+      try {{
+        const res = await fetch('/live-region');
+        if (res.ok) {{
+          document.getElementById('live-region').innerHTML = await res.text();
+        }}
+      }} catch (e) {{ /* 폴링 실패는 조용히 무시하고 다음 주기에 재시도 */ }}
+    }}
+
+    document.getElementById('demo-underwrite-form').addEventListener('submit', async function (e) {{
+      e.preventDefault();
+      const key = getDemoKey();
+      if (!key) return;
+      const applicantId = document.getElementById('demo-applicant-select').value;
+      const statusEl = document.getElementById('demo-status');
+      statusEl.textContent = '요청 접수 — 심사 중…';
+      const body = new URLSearchParams({{applicant_id: applicantId, key: key}});
+      try {{
+        const res = await fetch('/demo/underwrite', {{method: 'POST', body: body}});
+        if (res.status === 403) {{
+          sessionStorage.removeItem('demoKey');
+          statusEl.textContent = '키가 틀렸습니다. 다시 시도해 주세요.';
+          return;
+        }}
+        if (!res.ok) {{
+          statusEl.textContent = '심사 요청 실패';
+          return;
+        }}
+        statusEl.textContent = '완료됨';
+        refreshLiveRegion();
+      }} catch (err) {{
+        statusEl.textContent = '요청 중 오류가 발생했습니다.';
+      }}
+    }});
+
+    refreshLiveRegion();
+    setInterval(refreshLiveRegion, 2500);
+  </script>
 </body>
 </html>
 """

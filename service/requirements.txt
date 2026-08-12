@@ -3,6 +3,7 @@ uvicorn[standard]
 google-genai
 google-cloud-bigquery
 google-cloud-pubsub
+google-cloud-firestore
 python-dotenv
 pydantic
 joblib
