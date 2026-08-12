@@ -528,8 +528,8 @@ def status_page(delete_error: str = None):
   <div class="wrap">
     <header>
       <div class="eyebrow">CreditFlow Agent · Live PoC</div>
-      <h1>소상공인 대출 사전심사 심사 대시보드</h1>
-      <div class="subtitle">Gemini 판정 + Solana devnet 자동 집행 결과를 실시간으로 조회합니다 (읽기 전용)</div>
+      <h1>소상공인 대출 심사 에이전트 대시보드</h1>
+      <div class="subtitle">Gemini 판정 + Solana devnet 자동 집행을 실시간으로 실행하고 결과를 조회합니다</div>
     </header>
 
     <div id="live-region">{live_region_html}</div>
