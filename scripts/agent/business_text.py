@@ -41,6 +41,15 @@ SAMPLE_BUSINESS_DESCRIPTIONS: dict[int, str] = {
     ),
 }
 
+# 대시보드 드롭다운 등 짧은 라벨이 필요한 곳에서 사용하는 업종 요약 (SAMPLE_BUSINESS_DESCRIPTIONS와 1:1 대응).
+SAMPLE_BUSINESS_INDUSTRY: dict[int, str] = {
+    10736: "인테리어 시공업",
+    192171: "배달대행 라이더 중개 플랫폼",
+    216524: "건어물 도소매업",
+    142764: "카페 운영",
+    61059: "학원 운영",
+}
+
 DEFAULT_DESCRIPTION_NOTE = (
     "(이 신청자에 대한 사업자 설명 텍스트가 없어 정성 정보 없이 정량 결과만으로 판단)"
 )

@@ -26,7 +26,7 @@ from google.cloud import pubsub_v1  # noqa: E402
 from decision import make_final_decision  # noqa: E402
 import payment_mock  # noqa: E402
 import live_state  # noqa: E402
-from business_text import SAMPLE_BUSINESS_DESCRIPTIONS  # noqa: E402
+from business_text import SAMPLE_BUSINESS_DESCRIPTIONS, SAMPLE_BUSINESS_INDUSTRY  # noqa: E402
 from bigquery_logger import (  # noqa: E402
     get_client as get_bq_client,
     delete_decision,
@@ -210,11 +210,18 @@ def _fetch_summary() -> dict:
 _DECISION_KR = {"approve": "승인", "conditional": "조건부승인", "reject": "거절"}
 _DECISION_BADGE_CLASS = {"approve": "badge-approve", "conditional": "badge-conditional", "reject": "badge-reject"}
 
+# 순수 디자인용 인라인 아이콘(Feather Icons 스타일, MIT). 로직에는 영향 없음.
+_ICON_TOTAL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'
+_ICON_APPROVAL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
+_ICON_CHAIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>'
+_ICON_DISBURSED = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>'
+_ICON_BOLT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>'
+
 
 def _badge(decision: str) -> str:
     label = _DECISION_KR.get(decision, decision or "-")
     cls = _DECISION_BADGE_CLASS.get(decision, "badge-neutral")
-    return f'<span class="badge {cls}">{label}</span>'
+    return f'<span class="badge {cls}"><span class="badge-dot"></span>{label}</span>'
 
 
 def _tx_link(tx_signature, explorer_url) -> str:
@@ -303,7 +310,8 @@ def _in_progress_html(in_progress: list[dict]) -> str:
     if not in_progress:
         return ""
     items = "".join(
-        f'<div class="progress-item">⏳ 신청자 <span class="mono">{p.get("applicant_id")}</span>번 심사 중…</div>'
+        f'<div class="progress-item"><span class="pulse-dot"></span>신청자 '
+        f'<span class="mono">{p.get("applicant_id")}</span>번 심사 중…</div>'
         for p in in_progress
     )
     return f'<div class="progress-banner">{items}</div>'
@@ -311,9 +319,9 @@ def _in_progress_html(in_progress: list[dict]) -> str:
 
 def _applicant_options_html() -> str:
     options = []
-    for aid, text in SAMPLE_BUSINESS_DESCRIPTIONS.items():
-        label = html.escape(text[:24].strip())
-        options.append(f'<option value="{aid}">{aid} — {label}…</option>')
+    for aid in SAMPLE_BUSINESS_DESCRIPTIONS:
+        label = html.escape(SAMPLE_BUSINESS_INDUSTRY.get(aid, "업종 정보 없음"))
+        options.append(f'<option value="{aid}">{aid} — {label}</option>')
     return "".join(options)
 
 
@@ -324,8 +332,12 @@ def _render_live_region(
     in_progress: list[dict],
     fetch_error: str = None,
     delete_error: str = None,
-) -> str:
+) -> tuple[str, str]:
     """폴링으로 계속 갱신되는 대시보드 영역(KPI/최근 심사/재심사)을 렌더링한다.
+
+    (top, bottom) 튜플로 나눠서 반환한다 — 그 사이에 "새 심사 실행" 폼(폴링 대상이 아닌 정적
+    요소)을 끼워 넣기 위함. 폼까지 통째로 폴링 영역에 넣으면 2.5초마다 innerHTML이 갈아치워지며
+    드롭다운 선택값이 초기화되고 이벤트 바인딩도 끊길 수 있어, 폼은 항상 두 영역 밖에 둔다.
 
     GET / (최초 로드)와 GET /live-region (2.5초 폴링) 양쪽에서 동일하게 사용한다.
     """
@@ -343,29 +355,43 @@ def _render_live_region(
     if delete_error:
         error_banner += f'<div class="banner">⚠ 삭제 실패: {delete_error}</div>'
 
-    return f"""
+    top = f"""
     {error_banner}
     {_in_progress_html(in_progress)}
 
     <section class="kpi-row">
       <div class="kpi">
-        <div class="kpi-label">총 심사 건수</div>
-        <div class="kpi-value">{total}</div>
+        <div class="kpi-icon kpi-icon-accent">{_ICON_TOTAL}</div>
+        <div class="kpi-body">
+          <div class="kpi-label">총 심사 건수</div>
+          <div class="kpi-value">{total}</div>
+        </div>
       </div>
       <div class="kpi">
-        <div class="kpi-label">승인율</div>
-        <div class="kpi-value accent">{approval_rate}</div>
+        <div class="kpi-icon kpi-icon-good">{_ICON_APPROVAL}</div>
+        <div class="kpi-body">
+          <div class="kpi-label">승인율</div>
+          <div class="kpi-value accent">{approval_rate}</div>
+        </div>
       </div>
       <div class="kpi">
-        <div class="kpi-label">온체인 집행 건수</div>
-        <div class="kpi-value">{executed}</div>
+        <div class="kpi-icon kpi-icon-violet">{_ICON_CHAIN}</div>
+        <div class="kpi-body">
+          <div class="kpi-label">온체인 집행 건수</div>
+          <div class="kpi-value">{executed}</div>
+        </div>
       </div>
       <div class="kpi">
-        <div class="kpi-label">누적 집행액 (devnet)</div>
-        <div class="kpi-value">{total_disbursed:.2f} USDC</div>
+        <div class="kpi-icon kpi-icon-warn">{_ICON_DISBURSED}</div>
+        <div class="kpi-body">
+          <div class="kpi-label">누적 집행액 (devnet)</div>
+          <div class="kpi-value">{total_disbursed:.2f} USDC</div>
+        </div>
       </div>
     </section>
+    """
 
+    bottom = f"""
     <section class="card">
       <div class="card-head">
         <div class="card-title">최근 심사 결과</div>
@@ -393,8 +419,10 @@ def _render_live_region(
     </section>
     """
 
+    return top, bottom
 
-def _load_dashboard_data(delete_error: str = None) -> str:
+
+def _load_dashboard_data(delete_error: str = None) -> tuple[str, str]:
     try:
         decisions = _fetch_recent(TABLE_ID)
         summary = _fetch_summary()
@@ -415,15 +443,22 @@ def _load_dashboard_data(delete_error: str = None) -> str:
     return _render_live_region(decisions, summary, reevaluations, in_progress, fetch_error, delete_error)
 
 
+_LIVE_REGION_SPLIT = "<!--LIVE-REGION-SPLIT-->"
+
+
 @app.get("/live-region", response_class=HTMLResponse)
 def live_region():
-    """대시보드가 2.5초마다 폴링하는 조각 HTML — 다른 접속자가 켜둔 화면에도 "심사 중" 상태가 뜨게 한다."""
-    return _load_dashboard_data()
+    """대시보드가 2.5초마다 폴링하는 조각 HTML — 다른 접속자가 켜둔 화면에도 "심사 중" 상태가 뜨게 한다.
+
+    top/bottom 두 조각을 구분자로 이어붙여 반환한다 (프론트에서 split해서 각자 다른
+    컨테이너에 꽂는다 — "새 심사 실행" 폼이 그 사이에 고정으로 위치하기 때문)."""
+    top, bottom = _load_dashboard_data()
+    return f"{top}{_LIVE_REGION_SPLIT}{bottom}"
 
 
 @app.get("/", response_class=HTMLResponse)
 def status_page(delete_error: str = None):
-    live_region_html = _load_dashboard_data(delete_error)
+    live_top, live_bottom = _load_dashboard_data(delete_error)
 
     return f"""
 <!doctype html>
@@ -438,87 +473,163 @@ def status_page(delete_error: str = None):
     --page: #f4f6fa; --surface: #ffffff; --surface-2: #f8f9fc;
     --ink: #14171c; --ink-2: #52586b; --muted: #8a8d99;
     --border: rgba(20,23,28,0.08);
-    --accent: #2a78d6; --accent-soft: #e8f1fc;
+    --accent: #2a78d6; --accent-2: #7c5cff; --accent-soft: #e8f1fc;
     --good: #0ca30c; --good-soft: #e7f7e7;
     --warn: #b8860b; --warn-soft: #fdf3d9;
     --bad: #d03b3b; --bad-soft: #fbe9e9;
+    --violet: #7c5cff; --violet-soft: #efeaff;
+    --shadow-sm: 0 1px 2px rgba(20,23,28,0.05);
+    --shadow-md: 0 10px 30px -12px rgba(20,23,28,0.18);
   }}
   @media (prefers-color-scheme: dark) {{
     :root {{
       color-scheme: dark;
-      --page: #0d0e12; --surface: #17191f; --surface-2: #1c1f26;
+      --page: #0a0b0f; --surface: #16181f; --surface-2: #1b1e26;
       --ink: #f2f3f5; --ink-2: #b7bcc9; --muted: #82869a;
-      --border: rgba(255,255,255,0.08);
-      --accent: #4c93e8; --accent-soft: #16283f;
-      --good: #34c759; --good-soft: #102417;
+      --border: rgba(255,255,255,0.09);
+      --accent: #5b9cf0; --accent-2: #9a83ff; --accent-soft: #172440;
+      --good: #34c759; --good-soft: #10241a;
       --warn: #e0b23a; --warn-soft: #2c2410;
       --bad: #e5605f; --bad-soft: #2c1616;
+      --violet: #9a83ff; --violet-soft: #1f1a38;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+      --shadow-md: 0 14px 32px -14px rgba(0,0,0,0.6);
     }}
   }}
   * {{ box-sizing: border-box; }}
   body {{
-    margin: 0; padding: 32px 24px 64px; background: var(--page); color: var(--ink);
+    margin: 0; padding: 40px 24px 72px; color: var(--ink);
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background:
+      radial-gradient(720px 320px at 12% -8%, var(--accent-soft), transparent 60%),
+      radial-gradient(640px 280px at 100% 0%, var(--violet-soft), transparent 55%),
+      var(--page);
   }}
-  .wrap {{ max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }}
-  .eyebrow {{ font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); }}
-  h1 {{ font-size: 22px; font-weight: 800; margin: 6px 0 4px; }}
+  .wrap {{ max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }}
+  #live-region-top, #live-region-bottom {{ display: flex; flex-direction: column; gap: 26px; }}
+
+  .page-header {{ display: flex; align-items: flex-start; gap: 16px; }}
+  .logo-mark {{
+    flex: none; width: 44px; height: 44px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center; color: #fff;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    box-shadow: var(--shadow-md);
+  }}
+  .logo-mark svg {{ width: 22px; height: 22px; }}
+  .header-text {{ min-width: 0; }}
+
+  .eyebrow {{
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--accent); background: var(--accent-soft); border-radius: 999px;
+    padding: 4px 10px 4px 8px;
+  }}
+  .eyebrow-dot {{
+    width: 6px; height: 6px; border-radius: 50%; background: var(--good);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 25%, transparent);
+  }}
+  h1 {{ font-size: 23px; font-weight: 800; margin: 10px 0 4px; letter-spacing: -.01em; }}
   .subtitle {{ color: var(--ink-2); font-size: 13.5px; }}
   .banner {{ background: var(--bad-soft); color: var(--bad); padding: 10px 14px; border-radius: 8px; font-size: 13px; }}
 
-  .kpi-row {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }}
-  .kpi {{ background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }}
+  .kpi-row {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }}
+  .kpi {{
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 16px; box-shadow: var(--shadow-sm);
+    display: flex; align-items: center; gap: 12px;
+    transition: transform .15s ease, box-shadow .15s ease;
+  }}
+  .kpi:hover {{ transform: translateY(-2px); box-shadow: var(--shadow-md); }}
+  .kpi-icon {{
+    flex: none; width: 38px; height: 38px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+  }}
+  .kpi-icon svg {{ width: 18px; height: 18px; }}
+  .kpi-icon-accent {{ background: var(--accent-soft); color: var(--accent); }}
+  .kpi-icon-good {{ background: var(--good-soft); color: var(--good); }}
+  .kpi-icon-violet {{ background: var(--violet-soft); color: var(--violet); }}
+  .kpi-icon-warn {{ background: var(--warn-soft); color: var(--warn); }}
+  .kpi-body {{ min-width: 0; }}
   .kpi-label {{ font-size: 12px; color: var(--ink-2); }}
-  .kpi-value {{ font-size: 22px; font-weight: 700; margin-top: 4px; }}
+  .kpi-value {{ font-size: 21px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }}
   .kpi-value.accent {{ color: var(--accent); }}
 
-  .card {{ background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }}
-  .card-head {{ display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }}
+  .card {{
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 20px 22px; box-shadow: var(--shadow-sm);
+  }}
+  .card-head {{ display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; }}
   .card-title {{ font-size: 14.5px; font-weight: 700; }}
   .card-note {{ font-size: 12px; color: var(--muted); }}
 
   table {{ border-collapse: collapse; width: 100%; font-size: 12.5px; }}
   th {{ text-align: left; font-weight: 600; color: var(--ink-2); padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 11.5px; text-transform: uppercase; letter-spacing: .03em; }}
-  td {{ padding: 9px 10px; border-bottom: 1px solid var(--border); }}
+  td {{ padding: 10px; border-bottom: 1px solid var(--border); }}
   tr:last-child td {{ border-bottom: none; }}
+  tbody tr {{ transition: background .1s ease; }}
+  tbody tr:nth-child(even) {{ background: var(--surface-2); }}
+  tbody tr:hover {{ background: var(--accent-soft); }}
   .mono {{ font-variant-numeric: tabular-nums; }}
   .muted {{ color: var(--muted); }}
   .empty {{ text-align: center; color: var(--muted); padding: 20px; }}
 
-  .badge {{ display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 600; }}
+  .badge {{
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+  }}
+  .badge-dot {{ width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .8; }}
   .badge-approve {{ background: var(--good-soft); color: var(--good); }}
   .badge-conditional {{ background: var(--warn-soft); color: var(--warn); }}
   .badge-reject {{ background: var(--bad-soft); color: var(--bad); }}
   .badge-neutral {{ background: var(--surface-2); color: var(--muted); }}
 
-  .txlink {{ color: var(--accent); text-decoration: none; font-variant-numeric: tabular-nums; }}
+  .txlink {{ color: var(--accent); text-decoration: none; font-variant-numeric: tabular-nums; font-weight: 600; }}
   .txlink:hover {{ text-decoration: underline; }}
 
   .del-btn {{
     background: var(--bad-soft); color: var(--bad); border: 1px solid transparent;
-    border-radius: 6px; padding: 4px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer;
+    border-radius: 8px; padding: 5px 12px; font-size: 11.5px; font-weight: 600; cursor: pointer;
+    transition: background .15s ease, border-color .15s ease;
   }}
-  .del-btn:hover {{ border-color: var(--bad); }}
+  .del-btn:hover {{ border-color: var(--bad); background: var(--bad); color: #fff; }}
 
-  .action-hint {{ font-size: 12.5px; color: var(--ink-2); }}
+  .action-hint {{ font-size: 12.5px; color: var(--ink-2); line-height: 1.7; }}
   code {{ background: var(--surface-2); padding: 1px 6px; border-radius: 4px; font-size: 12px; }}
 
   .progress-banner {{
-    background: var(--accent-soft); border-radius: 8px; padding: 10px 14px;
-    display: flex; flex-direction: column; gap: 4px;
+    background: linear-gradient(135deg, var(--accent-soft), var(--violet-soft));
+    border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px;
+    display: flex; flex-direction: column; gap: 6px;
   }}
-  .progress-item {{ color: var(--accent); font-size: 13px; font-weight: 600; }}
+  .progress-item {{ display: flex; align-items: center; gap: 8px; color: var(--accent); font-size: 13px; font-weight: 700; }}
+  .pulse-dot {{
+    flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+    animation: pulse 1.4s ease-in-out infinite;
+  }}
+  @keyframes pulse {{
+    0% {{ box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); }}
+    70% {{ box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 0%, transparent); }}
+    100% {{ box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }}
+  }}
 
   .demo-form {{ display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }}
   .demo-form select {{
     background: var(--surface-2); color: var(--ink); border: 1px solid var(--border);
-    border-radius: 6px; padding: 7px 10px; font-size: 13px; max-width: 320px;
+    border-radius: 8px; padding: 8px 12px; font-size: 13px; max-width: 320px;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }}
+  .demo-form select:focus {{
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
   }}
   .run-btn {{
-    background: var(--accent); color: #fff; border: none; border-radius: 6px;
-    padding: 7px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; border: none;
+    border-radius: 8px; padding: 8px 18px; font-size: 13px; font-weight: 700; cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition: transform .12s ease, box-shadow .12s ease;
   }}
-  .run-btn:hover {{ opacity: 0.9; }}
+  .run-btn:hover {{ transform: translateY(-1px); box-shadow: var(--shadow-md); }}
+  .run-btn:active {{ transform: translateY(0); }}
   .demo-status {{ font-size: 12.5px; color: var(--ink-2); }}
 
   @media (max-width: 720px) {{ .kpi-row {{ grid-template-columns: repeat(2, 1fr); }} }}
@@ -526,13 +637,16 @@ def status_page(delete_error: str = None):
 </head>
 <body>
   <div class="wrap">
-    <header>
-      <div class="eyebrow">CreditFlow Agent · Live PoC</div>
-      <h1>소상공인 대출 심사 에이전트 대시보드</h1>
-      <div class="subtitle">Gemini 판정 + Solana devnet 자동 집행을 실시간으로 실행하고 결과를 조회합니다</div>
+    <header class="page-header">
+      <div class="logo-mark">{_ICON_BOLT}</div>
+      <div class="header-text">
+        <div class="eyebrow"><span class="eyebrow-dot"></span>CreditFlow Agent · Live PoC</div>
+        <h1>소상공인 대출 심사 에이전트 대시보드</h1>
+        <div class="subtitle">Gemini 판정 + Solana devnet 자동 집행을 실시간으로 실행하고 결과를 조회합니다</div>
+      </div>
     </header>
 
-    <div id="live-region">{live_region_html}</div>
+    <div id="live-region-top">{live_top}</div>
 
     <section class="card">
       <div class="card-head">
@@ -551,6 +665,8 @@ def status_page(delete_error: str = None):
         예: <code>curl.exe -s -X POST -d "{{}}" https://creditflow-agent-46585987317.asia-northeast3.run.app/underwrite/10736</code>
       </div>
     </section>
+
+    <div id="live-region-bottom">{live_bottom}</div>
   </div>
 
   <script>
@@ -562,7 +678,10 @@ def status_page(delete_error: str = None):
       try {{
         const res = await fetch('/live-region');
         if (res.ok) {{
-          document.getElementById('live-region').innerHTML = await res.text();
+          const text = await res.text();
+          const [top, bottom] = text.split('{_LIVE_REGION_SPLIT}');
+          document.getElementById('live-region-top').innerHTML = top;
+          document.getElementById('live-region-bottom').innerHTML = bottom || '';
         }}
       }} catch (e) {{ /* 폴링 실패는 조용히 무시하고 다음 주기에 재시도 */ }}
     }}
