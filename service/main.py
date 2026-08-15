@@ -770,6 +770,8 @@ def status_page(delete_error: str = None):
       </div>
     </section>
 
+    <div id="live-region-bottom">{live_bottom}</div>
+
     <section class="card">
       <div class="card-head">
         <div class="card-title">Critic Agent 단독 테스트</div>
@@ -784,8 +786,6 @@ def status_page(delete_error: str = None):
       </form>
       <div id="critic-test-result" class="critic-test-result"></div>
     </section>
-
-    <div id="live-region-bottom">{live_bottom}</div>
   </div>
 
   <script>
