@@ -26,6 +26,7 @@ from google.cloud import pubsub_v1  # noqa: E402
 from decision import make_final_decision  # noqa: E402
 import critic  # noqa: E402
 import payment_mock  # noqa: E402
+import devnet_transfer  # noqa: E402
 import live_state  # noqa: E402
 from business_text import SAMPLE_BUSINESS_DESCRIPTIONS, SAMPLE_BUSINESS_INDUSTRY  # noqa: E402
 from bigquery_logger import (  # noqa: E402
@@ -154,6 +155,30 @@ def demo_underwrite(applicant_id: int = Form(...), key: str = Form(...)):
     if not DEMO_KEY or key != DEMO_KEY:
         raise HTTPException(status_code=403, detail="진행 권한이 없습니다.")
     return underwrite(applicant_id)
+
+
+@app.get("/demo/wallet-status/{applicant_id}")
+def wallet_status(applicant_id: int):
+    """신청 폼 단계에서 이 신청자가 이미 지갑을 가지고 있는지 조회한다 (읽기 전용, 생성하지 않음)."""
+    name = f"applicant_{applicant_id}"
+    exists = devnet_transfer.wallet_exists(name)
+    wallet_address = devnet_transfer.get_or_create_devnet_wallet(name) if exists else None
+    return {"applicant_id": applicant_id, "exists": exists, "wallet_address": wallet_address}
+
+
+@app.post("/demo/issue-wallet")
+def issue_wallet(applicant_id: int = Form(...), key: str = Form(...)):
+    """지갑이 없는 신청자에게 임베디드(커스터디) 지갑을 즉시 발급한다.
+
+    Passkey 방식 — 신청자는 시드구문을 따로 관리하지 않고, 개인키는 서비스가 안전하게
+    보관한다. 트랜잭션 수수료(SOL)와 토큰 계좌 생성 비용도 전부 agent_treasury 지갑이
+    대신 부담하므로(devnet_transfer.py 참고), 신청자는 완전히 Gasless로 이용한다.
+    """
+    if not DEMO_KEY or key != DEMO_KEY:
+        raise HTTPException(status_code=403, detail="진행 권한이 없습니다.")
+    name = f"applicant_{applicant_id}"
+    wallet_address = devnet_transfer.get_or_create_devnet_wallet(name)
+    return {"applicant_id": applicant_id, "wallet_address": wallet_address}
 
 
 @app.post("/demo/critic-test")
@@ -690,6 +715,13 @@ def status_page(delete_error: str = None):
   .run-btn:active {{ transform: translateY(0); }}
   .demo-status {{ font-size: 12.5px; color: var(--ink-2); }}
 
+  .wallet-status-row {{ display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }}
+  .wallet-status-label {{ font-size: 13px; color: var(--ink-2); }}
+  .wallet-status-label.has-wallet {{ color: var(--good); font-weight: 700; }}
+  .wallet-status-label.no-wallet {{ color: var(--warn); font-weight: 700; }}
+  .wallet-hint {{ font-size: 11.5px; color: var(--muted); margin-top: 6px; line-height: 1.6; }}
+  .run-btn-secondary {{ background: linear-gradient(135deg, var(--violet), var(--accent-2)); }}
+
   .critic-test-result {{
     display: none; margin-top: 14px; padding: 14px 16px; border-radius: 10px;
     background: var(--surface-2); border: 1px solid var(--border); font-size: 13px; line-height: 1.6;
@@ -716,7 +748,16 @@ def status_page(delete_error: str = None):
         <div class="card-title">새 심사 실행</div>
         <div class="card-note">진행 키 필요 (발표자 전용)</div>
       </div>
-      <form id="demo-underwrite-form" class="demo-form">
+      <div class="wallet-status-row">
+        <span id="wallet-status-label" class="wallet-status-label">신청자를 선택하면 지갑 보유 여부를 확인합니다…</span>
+        <button type="button" id="issue-wallet-btn" class="run-btn run-btn-secondary" style="display:none">임베디드 지갑 자동 발급</button>
+      </div>
+      <div class="wallet-hint">
+        Passkey 방식 — 신청자가 시드구문을 관리할 필요 없이 서비스가 안전하게 지갑을 발급·보관합니다.
+        Gasless — 트랜잭션 수수료와 계좌 생성 비용은 전부 서비스가 대신 부담해 신청자는 한 푼도 내지 않습니다.
+      </div>
+
+      <form id="demo-underwrite-form" class="demo-form" style="margin-top:14px">
         <select name="applicant_id" id="demo-applicant-select">
           {_applicant_options_html()}
         </select>
@@ -763,6 +804,56 @@ def status_page(delete_error: str = None):
         }}
       }} catch (e) {{ /* 폴링 실패는 조용히 무시하고 다음 주기에 재시도 */ }}
     }}
+
+    function walletAddrShort(addr) {{
+      return addr.slice(0, 4) + '…' + addr.slice(-4);
+    }}
+
+    async function refreshWalletStatus() {{
+      const applicantId = document.getElementById('demo-applicant-select').value;
+      const label = document.getElementById('wallet-status-label');
+      const issueBtn = document.getElementById('issue-wallet-btn');
+      label.textContent = '지갑 상태 확인 중…';
+      label.className = 'wallet-status-label';
+      issueBtn.style.display = 'none';
+      try {{
+        const res = await fetch('/demo/wallet-status/' + applicantId);
+        if (!res.ok) {{ label.textContent = '지갑 상태를 확인할 수 없습니다.'; return; }}
+        const data = await res.json();
+        if (data.exists) {{
+          label.textContent = '지갑 보유: ' + walletAddrShort(data.wallet_address);
+          label.className = 'wallet-status-label has-wallet';
+        }} else {{
+          label.textContent = '지갑 없음 — 아래 버튼으로 임베디드 지갑을 발급하세요.';
+          label.className = 'wallet-status-label no-wallet';
+          issueBtn.style.display = 'inline-block';
+        }}
+      }} catch (e) {{
+        label.textContent = '지갑 상태를 확인할 수 없습니다.';
+      }}
+    }}
+
+    document.getElementById('demo-applicant-select').addEventListener('change', refreshWalletStatus);
+
+    document.getElementById('issue-wallet-btn').addEventListener('click', async function () {{
+      const key = getDemoKey();
+      if (!key) return;
+      const applicantId = document.getElementById('demo-applicant-select').value;
+      const label = document.getElementById('wallet-status-label');
+      label.textContent = '임베디드 지갑 발급 중…';
+      const body = new URLSearchParams({{applicant_id: applicantId, key: key}});
+      try {{
+        const res = await fetch('/demo/issue-wallet', {{method: 'POST', body: body}});
+        if (res.status === 403) {{ label.textContent = '키가 틀렸습니다. 다시 시도해 주세요.'; return; }}
+        if (!res.ok) {{ label.textContent = '지갑 발급 실패'; return; }}
+        const data = await res.json();
+        label.textContent = '지갑 발급 완료: ' + walletAddrShort(data.wallet_address);
+        label.className = 'wallet-status-label has-wallet';
+        document.getElementById('issue-wallet-btn').style.display = 'none';
+      }} catch (err) {{
+        label.textContent = '요청 중 오류가 발생했습니다.';
+      }}
+    }});
 
     document.getElementById('demo-underwrite-form').addEventListener('submit', async function (e) {{
       e.preventDefault();
@@ -828,6 +919,7 @@ def status_page(delete_error: str = None):
       }}
     }});
 
+    refreshWalletStatus();
     refreshLiveRegion();
     setInterval(refreshLiveRegion, 2500);
   </script>

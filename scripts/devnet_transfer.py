@@ -62,6 +62,14 @@ def _memo_instruction(memo: str, signer: Pubkey) -> Instruction:
     )
 
 
+def wallet_exists(name: str) -> bool:
+    """개인키 파일이 이미 생성돼 있는지만 확인한다 (새로 만들지 않음).
+
+    신청 폼에서 "지갑이 없는 신청자"에게만 임베디드 지갑 발급 버튼을 보여주기 위한 용도.
+    """
+    return (KEYS_DIR / f"{name}.json").exists()
+
+
 def load_or_create_keypair(name: str) -> Keypair:
     KEYS_DIR.mkdir(parents=True, exist_ok=True)
     path = KEYS_DIR / f"{name}.json"
