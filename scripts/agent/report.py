@@ -11,6 +11,19 @@ from decision import FinalDecisionResult
 
 DECISION_LABEL = {"approve": "승인", "conditional": "조건부승인", "reject": "거절"}
 ADJUSTMENT_LABEL = {"upgrade": "상향 조정", "downgrade": "하향 조정", "none": "조정 없음"}
+CRITIC_LABEL = {"approve": "승인 (1차 판정에 동의)", "reject": "반박 (재검토 필요)"}
+_SOURCE_LABEL = {"fallback": "안전장치", "critic_agent": "Critic"}
+
+
+def _format_tool_call_log(tool_call_log: list) -> str:
+    if not tool_call_log:
+        return "- (기록 없음)"
+    lines = []
+    for i, entry in enumerate(tool_call_log, start=1):
+        tag = _SOURCE_LABEL.get(entry.get("source"))
+        name = f"{entry['tool']}({tag})" if tag else entry["tool"]
+        lines.append(f"{i}. `{name}` — {entry.get('args') or '(인자 없음)'}")
+    return "\n".join(lines)
 
 
 def build_rationale_report(result: FinalDecisionResult) -> str:
@@ -55,6 +68,18 @@ def build_rationale_report(result: FinalDecisionResult) -> str:
 
 ## 4. 종합 판정 근거
 {result.decision_reasoning}
+
+## 5. Critic Agent 교차검증
+- 검토 결과: {CRITIC_LABEL.get(result.critic_verdict, result.critic_verdict or "(검토 없음)")}
+- 검토 의견: {result.critic_reasoning or "-"}
+{f"- ⚠ 위반 의심 조항: {result.critic_policy_violation}" if result.critic_policy_violation else ""}
+
+## 부록. 에이전트 도구 호출 로그
+하드코딩된 순서가 아니라, 에이전트(Gemini)가 신청자 상황을 보고 스스로 판단해 아래 순서로
+도구를 호출했다. `(안전장치)`가 붙은 항목은 모델이 호출하지 않아 코드가 직접 보강한 필수
+정보, `(Critic)`은 1차 판정 이후 독립적으로 실행된 Critic Agent 호출이다.
+
+{_format_tool_call_log(result.tool_call_log)}
 
 ---
 *본 리포트는 PoC 시연용으로 자동 생성되었으며, 사업자 설명은 합성(synthetic) 텍스트를 사용했습니다.*

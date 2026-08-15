@@ -29,6 +29,9 @@ SCHEMA = [
     bigquery.SchemaField("timestamp", "TIMESTAMP", mode="REQUIRED"),
     bigquery.SchemaField("rationale", "STRING"),
     bigquery.SchemaField("rationale_hash", "STRING"),  # sha256(rationale) — 결제 tx의 온체인 메모와 대조해 위변조 검증
+    bigquery.SchemaField("critic_verdict", "STRING"),  # Critic Agent의 독립 재검토 결과: "approve" | "reject"
+    bigquery.SchemaField("critic_reasoning", "STRING"),
+    bigquery.SchemaField("tool_call_summary", "STRING"),  # 에이전트가 자율적으로 고른 도구 호출 순서 (예: "predict_risk → record_decision")
 ]
 
 _client = None
@@ -112,6 +115,9 @@ REEVAL_SCHEMA = [
     bigquery.SchemaField("explorer_url", "STRING"),
     bigquery.SchemaField("rationale", "STRING"),
     bigquery.SchemaField("rationale_hash", "STRING"),
+    bigquery.SchemaField("critic_verdict", "STRING"),
+    bigquery.SchemaField("critic_reasoning", "STRING"),
+    bigquery.SchemaField("tool_call_summary", "STRING"),
     bigquery.SchemaField("reevaluated_at", "TIMESTAMP", mode="REQUIRED"),
 ]
 
@@ -152,6 +158,9 @@ def log_reevaluation(record: dict) -> None:
         "explorer_url": record.get("explorer_url"),
         "rationale": record.get("rationale"),
         "rationale_hash": record.get("rationale_hash"),
+        "critic_verdict": record.get("critic_verdict"),
+        "critic_reasoning": record.get("critic_reasoning"),
+        "tool_call_summary": record.get("tool_call_summary"),
         "reevaluated_at": record.get("reevaluated_at") or datetime.now(timezone.utc).isoformat(),
     }
     errors = client.insert_rows_json(table, [row])
@@ -269,6 +278,9 @@ def log_decision(record: dict) -> None:
         "timestamp": record.get("timestamp") or datetime.now(timezone.utc).isoformat(),
         "rationale": record.get("rationale"),
         "rationale_hash": record.get("rationale_hash"),
+        "critic_verdict": record.get("critic_verdict"),
+        "critic_reasoning": record.get("critic_reasoning"),
+        "tool_call_summary": record.get("tool_call_summary"),
     }
 
     errors = client.insert_rows_json(table, [row])

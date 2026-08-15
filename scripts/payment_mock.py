@@ -51,6 +51,9 @@ class PaymentResult:
     rationale: str
     rationale_hash: Optional[str] = None
     explorer_url: Optional[str] = None
+    critic_verdict: Optional[str] = None
+    critic_reasoning: Optional[str] = None
+    tool_call_summary: Optional[str] = None
 
 
 def _fake_tx_signature() -> str:
@@ -96,6 +99,9 @@ def disburse_loan(
     requested_loan_krw: int,
     rationale: str,
     wallet_address: Optional[str] = None,
+    critic_verdict: Optional[str] = None,
+    critic_reasoning: Optional[str] = None,
+    tool_call_summary: Optional[str] = None,
 ) -> PaymentResult:
     """판정 결과에 따라 온체인 집행을 수행한다 (최초 판정 시점 집행분).
 
@@ -128,6 +134,9 @@ def disburse_loan(
             rationale=rationale,
             rationale_hash=r_hash,
             explorer_url=explorer_url,
+            critic_verdict=critic_verdict,
+            critic_reasoning=critic_reasoning,
+            tool_call_summary=tool_call_summary,
         )
     else:
         result = PaymentResult(
@@ -145,6 +154,9 @@ def disburse_loan(
             rationale=rationale,
             rationale_hash=r_hash,
             explorer_url=None,
+            critic_verdict=critic_verdict,
+            critic_reasoning=critic_reasoning,
+            tool_call_summary=tool_call_summary,
         )
 
     _append_log(result)

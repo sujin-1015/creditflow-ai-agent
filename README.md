@@ -11,11 +11,16 @@
 ## 아키텍처 요약
 
 ```
-정형 데이터(18개 피처) → XGBoost 부도확률 → 1차 등급
-   → Gemini 정성 요약 + RAG 정책 검색
-   → Gemini 최종 판정(정성 조정 규정 적용, function calling)
+신청자 ID 입력
+   → Gemini 에이전트가 아래 도구 중 무엇을·몇 번·어떤 순서로 쓸지 스스로 판단 (automatic function calling, mode=AUTO)
+       - 정형 데이터 조회 / XGBoost 부도확률·정량 등급 조회
+       - (필요 시) SHAP 기여도 분석
+       - (필요 시) 사업자 설명(정성 정보) 구조화 요약
+       - (필요 시) RAG로 정책 조항 검색 — 질의문도 모델이 직접 작성
+       - record_decision 호출로 최종 판정 제출 (정성 조정 규정 적용)
+   → Critic Agent가 별도 Gemini 호출로 정책 조항 대비 1차 판정을 독립 재검토(반박/승인)
    → Solana devnet USDC 집행 + SPL Memo(근거 해시)
-   → BigQuery 기록
+   → BigQuery 기록 (판정 근거 + Critic 검증 결과)
 ```
 
 ```
@@ -36,13 +41,13 @@ Cloud Scheduler (매일 03:00 KST)
 ## 기술 스택
 
 - **ML**: XGBoost (실제 서빙에 사용). LightGBM은 비교 모델로 학습만 했고 서빙에는 포함되지 않음.
-- **에이전트 & LLM**: Gemini(`gemini-flash-lite-latest`, function calling 강제) — `google-genai` SDK로 직접 구현. 자체 구현 RAG(코사인 유사도 기반).
+- **에이전트 & LLM**: Gemini(`gemini-flash-lite-latest`) — `google-genai` SDK의 automatic function calling(mode=AUTO)으로 직접 구현. 도구 호출 여부·순서는 모델이 스스로 판단하며, 호출 로그(`tool_call_log`)로 그 과정을 그대로 노출한다. 1차 판정 이후 별도 Gemini 호출로 동작하는 Critic Agent(`scripts/agent/critic.py`)가 정책 문서 기준으로 판정을 독립 재검토(반박/승인)한다. 자체 구현 RAG(코사인 유사도 기반).
 - **온체인**: Solana devnet, `solana-py`/`solders`, Circle 공식 devnet USDC(SPL Token), SPL Memo(판정 근거 무결성 증명), `base58`
 - **백엔드**: FastAPI, uvicorn, python-multipart
 - **인프라(GCP)**: Cloud Run, BigQuery, Pub/Sub, Eventarc, Cloud Workflows, Cloud Scheduler, Secret Manager, Cloud Build
 - **공통**: Python 3.12, pydantic, hashlib(sha256)
 
-> 참고: Google ADK 기반 에이전트(`scripts/agent/adk_agent.py`)도 별도로 프로토타이핑했으나, 최종 배포 파이프라인에는 포함되지 않았다 (실제 판정은 `decision.py`가 `google-genai` SDK를 직접 호출).
+> 참고: Google ADK 기반 에이전트(`scripts/agent/adk_agent.py`)도 도구 자율 선택 구조를 프로토타이핑한 별도 스크립트로 남겨뒀다. 실제 배포 경로(`decision.py`)는 이와 동일한 자율 선택 원리를 `google-genai` SDK의 automatic function calling으로 직접 구현했다.
 
 ---
 
@@ -56,7 +61,8 @@ scripts/
   devnet_transfer.py     # Solana devnet 지갑/USDC 전송 + Memo 저수준 함수
   payment_mock.py        # 판정 결과에 따른 devnet 집행 로직
   agent/
-    decision.py          # 정량+정성 종합 최종 판정 (핵심 로직)
+    decision.py          # 정량+정성 종합 최종 판정 — Gemini 자율 도구선택 루프 (핵심 로직)
+    critic.py              # Critic Agent — 1차 판정을 정책 문서 기준으로 독립 재검토
     data_tools.py         # 정형 데이터 조회 + XGBoost 예측
     business_text.py      # 사업자 설명 요약 (Gemini)
     rag.py                 # 정책 문서 RAG
@@ -171,5 +177,6 @@ curl -s -X POST -d "{}" https://creditflow-agent-46585987317.asia-northeast3.run
 
 - 정적 Kaggle 데이터셋 기반 PoC로, 사업자 설명 텍스트는 자체 작성한 합성(synthetic) 텍스트다.
 - 조건부승인 건의 "3개월 후 자동 재심사"는 스케줄러/쿼리 구조 자체는 범용이지만, 실제 종단간 검증은 합성 후속 텍스트를 준비한 신청자 1명(61059)에 대해서만 완료했다.
-- Google ADK 기반 에이전트를 프로토타이핑했으나 최종 배포 경로에는 포함하지 않았다.
+- Google ADK 기반 에이전트(`adk_agent.py`)는 도구 자율 선택 구조를 검증한 프로토타입으로 남겨뒀다 — 최종 배포 경로는 동일한 원리를 `google-genai` SDK로 직접 구현했다.
+- Critic Agent는 1차 판정에 대해 승인/반박만 판단하며, 반박 시 자동으로 재판정을 트리거하는 피드백 루프는 아직 구현하지 않았다 (반박 결과는 대시보드/리포트에 노출되어 사람이 검토할 수 있다).
 - devnet/테스트 데이터를 사용하는 PoC이며, 실제 금융 서비스가 아니다.

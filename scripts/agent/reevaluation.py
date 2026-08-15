@@ -55,6 +55,9 @@ def reevaluate(applicant_id: int, followup_text: str | None = None) -> dict:
         "explorer_url": None,
         "rationale": new_result.decision_reasoning,
         "rationale_hash": None,
+        "critic_verdict": new_result.critic_verdict,
+        "critic_reasoning": new_result.critic_reasoning,
+        "tool_call_summary": new_result.tool_call_summary,
         "reevaluated_at": datetime.now(timezone.utc).isoformat(),
     }
 

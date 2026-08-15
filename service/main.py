@@ -102,6 +102,9 @@ def underwrite(applicant_id: int):
             decision=decision_result.final_decision,
             requested_loan_krw=decision_result.approved_amount_krw,
             rationale=decision_result.decision_reasoning,
+            critic_verdict=decision_result.critic_verdict,
+            critic_reasoning=decision_result.critic_reasoning,
+            tool_call_summary=decision_result.tool_call_summary,
         )
 
         event = {
@@ -128,6 +131,11 @@ def underwrite(applicant_id: int):
             "adjustment_applied": decision_result.adjustment_applied,
             "decision_reasoning": decision_result.decision_reasoning,
             "feature_contributions": decision_result.feature_contributions,
+            "tool_call_log": decision_result.tool_call_log,
+            "tool_call_summary": decision_result.tool_call_summary,
+            "critic_verdict": decision_result.critic_verdict,
+            "critic_reasoning": decision_result.critic_reasoning,
+            "critic_policy_violation": decision_result.critic_policy_violation,
         }
     finally:
         try:
@@ -224,6 +232,29 @@ def _badge(decision: str) -> str:
     return f'<span class="badge {cls}"><span class="badge-dot"></span>{label}</span>'
 
 
+_CRITIC_KR = {"approve": "승인", "reject": "반박"}
+_CRITIC_BADGE_CLASS = {"approve": "badge-approve", "reject": "badge-reject"}
+
+
+def _critic_badge(verdict: str, reasoning: str = None) -> str:
+    if not verdict:
+        return '<span class="muted">-</span>'
+    label = _CRITIC_KR.get(verdict, verdict)
+    cls = _CRITIC_BADGE_CLASS.get(verdict, "badge-neutral")
+    title = html.escape(reasoning or "", quote=True)
+    return f'<span class="badge {cls}" title="{title}"><span class="badge-dot"></span>{label}</span>'
+
+
+def _tool_log_html(summary: str) -> str:
+    """에이전트가 자율적으로 고른 도구 호출 순서 — 신청자마다 다르게 나온다는 것 자체가
+    "코드가 아니라 모델이 순서를 정한다"는 증거라 대시보드에 그대로 노출한다."""
+    if not summary:
+        return '<span class="muted">-</span>'
+    steps = [s.strip() for s in summary.split("→")]
+    escaped = html.escape(" → ".join(steps), quote=True)
+    return f'<span class="tool-log" title="{escaped}">{escaped}</span>'
+
+
 def _tx_link(tx_signature, explorer_url) -> str:
     if not tx_signature:
         return '<span class="muted">-</span>'
@@ -255,7 +286,7 @@ def _delete_form_html(applicant_id, ts) -> str:
 
 def _decisions_table_html(records: list[dict]) -> str:
     if not records:
-        return '<tr><td colspan="7" class="empty">아직 심사 기록이 없습니다.</td></tr>'
+        return '<tr><td colspan="9" class="empty">아직 심사 기록이 없습니다.</td></tr>'
     rows = []
     for r in records:
         amount = r.get("devnet_test_amount")
@@ -270,6 +301,8 @@ def _decisions_table_html(records: list[dict]) -> str:
             f'<td class="mono">{r.get("requested_loan_krw", 0):,}원</td>'
             f'<td class="mono">{amount_str}</td>'
             f"<td>{_tx_link(r.get('tx_signature'), r.get('explorer_url'))}</td>"
+            f"<td>{_critic_badge(r.get('critic_verdict'), r.get('critic_reasoning'))}</td>"
+            f"<td>{_tool_log_html(r.get('tool_call_summary'))}</td>"
             f'<td class="muted">{ts_str}</td>'
             f"<td>{_delete_form_html(r.get('applicant_id'), ts)}</td>"
             "</tr>"
@@ -279,7 +312,7 @@ def _decisions_table_html(records: list[dict]) -> str:
 
 def _reeval_table_html(records: list[dict]) -> str:
     if not records:
-        return '<tr><td colspan="6" class="empty">아직 재심사 기록이 없습니다.</td></tr>'
+        return '<tr><td colspan="8" class="empty">아직 재심사 기록이 없습니다.</td></tr>'
     rows = []
     for r in records:
         upgraded = r.get("upgraded")
@@ -300,6 +333,8 @@ def _reeval_table_html(records: list[dict]) -> str:
             f"<td>{result_badge}</td>"
             f'<td class="mono">{amount_str}</td>'
             f"<td>{_tx_link(r.get('tx_signature'), r.get('explorer_url'))}</td>"
+            f"<td>{_critic_badge(r.get('critic_verdict'), r.get('critic_reasoning'))}</td>"
+            f"<td>{_tool_log_html(r.get('tool_call_summary'))}</td>"
             f'<td class="muted">{ts_str}</td>'
             "</tr>"
         )
@@ -399,7 +434,7 @@ def _render_live_region(
       </div>
       <div style="overflow-x:auto">
         <table>
-          <thead><tr><th>신청자 ID</th><th>판정</th><th>대출한도(KRW)</th><th>devnet 집행액</th><th>tx</th><th>시각</th><th></th></tr></thead>
+          <thead><tr><th>신청자 ID</th><th>판정</th><th>대출한도(KRW)</th><th>devnet 집행액</th><th>tx</th><th>Critic 검증</th><th>에이전트 도구 호출 순서</th><th>시각</th><th></th></tr></thead>
           <tbody>{_decisions_table_html(decisions)}</tbody>
         </table>
       </div>
@@ -412,7 +447,7 @@ def _render_live_region(
       </div>
       <div style="overflow-x:auto">
         <table>
-          <thead><tr><th>신청자 ID</th><th>판정 변화</th><th>결과</th><th>추가 집행액</th><th>tx</th><th>재심사 시각</th></tr></thead>
+          <thead><tr><th>신청자 ID</th><th>판정 변화</th><th>결과</th><th>추가 집행액</th><th>tx</th><th>Critic 검증</th><th>에이전트 도구 호출 순서</th><th>재심사 시각</th></tr></thead>
           <tbody>{_reeval_table_html(reevaluations)}</tbody>
         </table>
       </div>
@@ -585,6 +620,12 @@ def status_page(delete_error: str = None):
 
   .txlink {{ color: var(--accent); text-decoration: none; font-variant-numeric: tabular-nums; font-weight: 600; }}
   .txlink:hover {{ text-decoration: underline; }}
+
+  .tool-log {{
+    display: inline-block; max-width: 280px; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-size: 11px; color: var(--ink-2); cursor: help;
+  }}
 
   .del-btn {{
     background: var(--bad-soft); color: var(--bad); border: 1px solid transparent;
