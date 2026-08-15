@@ -24,6 +24,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse  # noqa: E402
 from google.cloud import pubsub_v1  # noqa: E402
 
 from decision import make_final_decision  # noqa: E402
+import critic  # noqa: E402
 import payment_mock  # noqa: E402
 import live_state  # noqa: E402
 from business_text import SAMPLE_BUSINESS_DESCRIPTIONS, SAMPLE_BUSINESS_INDUSTRY  # noqa: E402
@@ -153,6 +154,22 @@ def demo_underwrite(applicant_id: int = Form(...), key: str = Form(...)):
     if not DEMO_KEY or key != DEMO_KEY:
         raise HTTPException(status_code=403, detail="진행 권한이 없습니다.")
     return underwrite(applicant_id)
+
+
+@app.post("/demo/critic-test")
+def demo_critic_test(scenario: str = Form(...), key: str = Form(...)):
+    """Critic Agent 단독 데모 — 1차 판정 에이전트를 거치지 않고, 미리 준비된 시나리오(정책
+    위반/정상)를 바로 Critic에게 넘겨 실제로 반박/승인하는지 확인한다. 판정 데이터를 새로
+    만들거나 저장하지 않는 순수 조회성 테스트라 BigQuery/devnet에는 아무 영향이 없다."""
+    if not DEMO_KEY or key != DEMO_KEY:
+        raise HTTPException(status_code=403, detail="진행 권한이 없습니다.")
+    if scenario not in critic.DEMO_SCENARIOS:
+        raise HTTPException(status_code=400, detail="알 수 없는 시나리오입니다.")
+    try:
+        result = critic.review_decision(**critic.DEMO_SCENARIOS[scenario])
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Critic 테스트 실패: {e}")
+    return {"scenario": scenario, **result}
 
 
 @app.post("/jobs/reevaluate-due")
@@ -673,6 +690,11 @@ def status_page(delete_error: str = None):
   .run-btn:active {{ transform: translateY(0); }}
   .demo-status {{ font-size: 12.5px; color: var(--ink-2); }}
 
+  .critic-test-result {{
+    display: none; margin-top: 14px; padding: 14px 16px; border-radius: 10px;
+    background: var(--surface-2); border: 1px solid var(--border); font-size: 13px; line-height: 1.6;
+  }}
+
   @media (max-width: 720px) {{ .kpi-row {{ grid-template-columns: repeat(2, 1fr); }} }}
 </style>
 </head>
@@ -705,6 +727,21 @@ def status_page(delete_error: str = None):
         또는 API로 직접 호출: <code>POST /underwrite/{{applicant_id}}</code> (판정 후 승인 건은 devnet USDC 집행까지 자동 수행)<br>
         예: <code>curl.exe -s -X POST -d "{{}}" https://creditflow-agent-46585987317.asia-northeast3.run.app/underwrite/10736</code>
       </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <div class="card-title">Critic Agent 단독 테스트</div>
+        <div class="card-note">1차 판정 없이 Critic만 실행 — 정책 위반을 실제로 잡아내는지 확인 (진행 키 필요)</div>
+      </div>
+      <form id="critic-test-form" class="demo-form">
+        <select name="scenario" id="critic-scenario-select">
+          <option value="violation">위반 시나리오 — 정량 reject인데 정성 조정으로 승인 상향</option>
+          <option value="clean">정상 시나리오 — 정책과 부합하는 conditional 유지</option>
+        </select>
+        <button type="submit" class="run-btn">테스트 실행</button>
+      </form>
+      <div id="critic-test-result" class="critic-test-result"></div>
     </section>
 
     <div id="live-region-bottom">{live_bottom}</div>
@@ -749,6 +786,45 @@ def status_page(delete_error: str = None):
         refreshLiveRegion();
       }} catch (err) {{
         statusEl.textContent = '요청 중 오류가 발생했습니다.';
+      }}
+    }});
+
+    function escapeHtml(s) {{
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }}
+
+    document.getElementById('critic-test-form').addEventListener('submit', async function (e) {{
+      e.preventDefault();
+      const key = getDemoKey();
+      if (!key) return;
+      const scenario = document.getElementById('critic-scenario-select').value;
+      const resultEl = document.getElementById('critic-test-result');
+      resultEl.style.display = 'block';
+      resultEl.textContent = 'Critic Agent 실행 중…';
+      const body = new URLSearchParams({{scenario: scenario, key: key}});
+      try {{
+        const res = await fetch('/demo/critic-test', {{method: 'POST', body: body}});
+        if (res.status === 403) {{
+          resultEl.textContent = '키가 틀렸습니다. 다시 시도해 주세요.';
+          return;
+        }}
+        if (!res.ok) {{
+          resultEl.textContent = '테스트 실패';
+          return;
+        }}
+        const data = await res.json();
+        const badgeCls = data.verdict === 'reject' ? 'badge-reject' : 'badge-approve';
+        const label = data.verdict === 'reject' ? '반박 (Reject)' : '승인 (Approve)';
+        let out = '<span class="badge ' + badgeCls + '"><span class="badge-dot"></span>Critic 판정: ' + label + '</span>';
+        out += '<div style="margin-top:8px; color:var(--ink-2)">' + escapeHtml(data.critique_reasoning) + '</div>';
+        if (data.policy_violation) {{
+          out += '<div style="margin-top:6px; color:var(--bad); font-weight:600">⚠ 위반 조항: ' + escapeHtml(data.policy_violation) + '</div>';
+        }}
+        resultEl.innerHTML = out;
+      }} catch (err) {{
+        resultEl.textContent = '요청 중 오류가 발생했습니다.';
       }}
     }});
 

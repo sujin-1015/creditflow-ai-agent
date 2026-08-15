@@ -91,8 +91,11 @@ def review_decision(
     return dict(call.args)
 
 
-if __name__ == "__main__":
-    result = review_decision(
+# 대시보드 "Critic Agent 단독 테스트" 버튼과 CLI(__main__)가 공유하는 데모 시나리오.
+# 1차 판정 에이전트를 거치지 않고, Critic이 정책 위반을 실제로 잡아내는지/정상 판정은
+# 통과시키는지를 바로 확인하기 위한 용도다 (decision.py의 실제 판정 흐름과는 무관).
+DEMO_SCENARIOS = {
+    "violation": dict(
         final_decision="approve",
         quant_tier="reject",
         default_probability=0.42,
@@ -100,5 +103,19 @@ if __name__ == "__main__":
         adjustment_direction="upgrade",
         decision_reasoning="정량 등급은 reject였으나 매출이 최근 회복세라 approve로 상향했다.",
         policy_citations_text="[정책 3항]\n정량 등급이 reject인 경우 정성 조정으로 상향할 수 없다.",
-    )
+    ),
+    "clean": dict(
+        final_decision="conditional",
+        quant_tier="conditional",
+        default_probability=0.55,
+        adjustment_applied=False,
+        adjustment_direction="none",
+        decision_reasoning="정량 등급 conditional을 그대로 유지했다. 매출 추세가 불명확해 상향 조정 근거가 부족하다고 판단했다.",
+        policy_citations_text="[정책 5항]\n리스크 등급별 사후 관리 — conditional 등급은 한도의 50%만 우선 집행하고 3개월 후 재심사한다.",
+    ),
+}
+
+
+if __name__ == "__main__":
+    result = review_decision(**DEMO_SCENARIOS["violation"])
     print(result)
