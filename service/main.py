@@ -622,9 +622,9 @@ def status_page(delete_error: str = None):
   .txlink:hover {{ text-decoration: underline; }}
 
   .tool-log {{
-    display: inline-block; max-width: 280px; overflow: hidden; text-overflow: ellipsis;
-    white-space: nowrap; font-family: ui-monospace, "SF Mono", Consolas, monospace;
-    font-size: 11px; color: var(--ink-2); cursor: help;
+    display: inline-block; max-width: 260px; white-space: normal; word-break: break-word;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-size: 11px; color: var(--ink-2); line-height: 1.5;
   }}
 
   .del-btn {{
