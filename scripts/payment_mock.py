@@ -39,7 +39,7 @@ _B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 class PaymentResult:
     applicant_id: int
     decision: str  # "approve" | "conditional" | "reject"
-    wallet_address: str
+    wallet_address: Optional[str]
     requested_loan_krw: int
     devnet_test_amount: float
     currency: str
@@ -54,6 +54,7 @@ class PaymentResult:
     critic_verdict: Optional[str] = None
     critic_reasoning: Optional[str] = None
     tool_call_summary: Optional[str] = None
+    wallet_newly_issued: bool = False
 
 
 def _fake_tx_signature() -> str:
@@ -105,17 +106,22 @@ def disburse_loan(
 ) -> PaymentResult:
     """판정 결과에 따라 온체인 집행을 수행한다 (최초 판정 시점 집행분).
 
-    승인 -> 전액(devnet 테스트 기준 1.00 USDC) 집행.
-    조건부승인 -> 정책 3항에 따라 50%(0.50 USDC)만 우선 집행 (잔여분은 재심사 후 결정).
-    거절 -> 트랜잭션 없이 판정 근거만 기록.
+    승인 -> 지갑 보유 여부 확인 -> 없으면 임베디드(커스터디) 지갑을 즉시 발급 -> 전액
+        (devnet 테스트 기준 1.00 USDC) 집행.
+    조건부승인 -> 위와 동일한 지갑 확인/발급 후, 정책 3항에 따라 50%(0.50 USDC)만 우선
+        집행 (잔여분은 재심사 후 결정).
+    거절 -> 지갑을 조회/발급하지 않고, 트랜잭션 없이 판정 근거만 기록.
     """
-    wallet_address = wallet_address or devnet_transfer.get_or_create_devnet_wallet(
-        f"applicant_{applicant_id}"
-    )
     now = datetime.now(timezone.utc).isoformat()
     r_hash = _rationale_hash(rationale)
+    wallet_newly_issued = False
 
     if decision in ("approve", "conditional"):
+        if wallet_address is None:
+            wallet_name = f"applicant_{applicant_id}"
+            wallet_newly_issued = not devnet_transfer.wallet_exists(wallet_name)
+            wallet_address = devnet_transfer.get_or_create_devnet_wallet(wallet_name)
+
         amount = DEVNET_TEST_AMOUNT_USDC if decision == "approve" else CONDITIONAL_AMOUNT_USDC
         memo = _build_memo(applicant_id, decision, r_hash)
         tx_signature, explorer_url = _execute_transfer(wallet_address, amount, memo=memo)
@@ -137,6 +143,7 @@ def disburse_loan(
             critic_verdict=critic_verdict,
             critic_reasoning=critic_reasoning,
             tool_call_summary=tool_call_summary,
+            wallet_newly_issued=wallet_newly_issued,
         )
     else:
         result = PaymentResult(
