@@ -98,15 +98,30 @@ def underwrite(applicant_id: int):
         except Exception as e:  # noqa: BLE001
             raise HTTPException(status_code=500, detail=f"판정 실패: {e}")
 
-        payment_result = payment_mock.disburse_loan(
-            applicant_id=applicant_id,
-            decision=decision_result.final_decision,
-            requested_loan_krw=decision_result.approved_amount_krw,
-            rationale=decision_result.decision_reasoning,
-            critic_verdict=decision_result.critic_verdict,
-            critic_reasoning=decision_result.critic_reasoning,
-            tool_call_summary=decision_result.tool_call_summary,
-        )
+        try:
+            payment_result = payment_mock.disburse_loan(
+                applicant_id=applicant_id,
+                decision=decision_result.final_decision,
+                requested_loan_krw=decision_result.approved_amount_krw,
+                rationale=decision_result.decision_reasoning,
+                critic_verdict=decision_result.critic_verdict,
+                critic_reasoning=decision_result.critic_reasoning,
+                tool_call_summary=decision_result.tool_call_summary,
+            )
+        except payment_mock.DisbursementError as e:
+            wallet_note = ""
+            if e.wallet_address:
+                tag = "새로 발급된" if e.wallet_newly_issued else "기존"
+                wallet_note = f" (참고: {tag} 임베디드 지갑은 정상 발급/확인됨 — {e.wallet_address})"
+            raise HTTPException(
+                status_code=500,
+                detail=f"판정은 '{decision_result.final_decision}'으로 나왔으나 devnet 집행에 실패했습니다: {e}{wallet_note}",
+            )
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(
+                status_code=500,
+                detail=f"판정은 '{decision_result.final_decision}'으로 나왔으나 devnet 집행에 실패했습니다: {e}",
+            )
 
         event = {
             "applicant_id": applicant_id,
@@ -801,7 +816,12 @@ def status_page(delete_error: str = None):
           return;
         }}
         if (!res.ok) {{
-          statusEl.textContent = '심사 요청 실패';
+          let detail = '심사 요청 실패';
+          try {{
+            const errBody = await res.json();
+            if (errBody.detail) detail = errBody.detail;
+          }} catch (parseErr) {{ /* 본문이 JSON이 아니면 기본 메시지 사용 */ }}
+          statusEl.textContent = detail;
           return;
         }}
         const data = await res.json();

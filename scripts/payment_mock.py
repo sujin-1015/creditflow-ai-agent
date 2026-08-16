@@ -35,6 +35,20 @@ CURRENCY = "USDC"  # pay.sh/x402 기준 정산 통화에 맞춰 SOL 대신 devne
 _B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
 
+class DisbursementError(RuntimeError):
+    """USDC 송금 단계에서 실패했을 때 던진다.
+
+    지갑 발급은 송금 시도보다 먼저 끝나는 별개의(로컬) 단계라, 송금이 실패해도 지갑은 이미
+    만들어져 있는 경우가 많다. 호출부가 "지갑은 발급됐지만 집행은 실패했다"를 구분해서
+    보여줄 수 있도록 그 상태를 함께 담아 던진다.
+    """
+
+    def __init__(self, message: str, wallet_address: Optional[str] = None, wallet_newly_issued: bool = False):
+        super().__init__(message)
+        self.wallet_address = wallet_address
+        self.wallet_newly_issued = wallet_newly_issued
+
+
 @dataclass
 class PaymentResult:
     applicant_id: int
@@ -124,7 +138,12 @@ def disburse_loan(
 
         amount = DEVNET_TEST_AMOUNT_USDC if decision == "approve" else CONDITIONAL_AMOUNT_USDC
         memo = _build_memo(applicant_id, decision, r_hash)
-        tx_signature, explorer_url = _execute_transfer(wallet_address, amount, memo=memo)
+        try:
+            tx_signature, explorer_url = _execute_transfer(wallet_address, amount, memo=memo)
+        except Exception as e:  # noqa: BLE001
+            raise DisbursementError(
+                str(e), wallet_address=wallet_address, wallet_newly_issued=wallet_newly_issued
+            ) from e
         result = PaymentResult(
             applicant_id=applicant_id,
             decision=decision,
