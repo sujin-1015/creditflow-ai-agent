@@ -38,6 +38,8 @@ Cloud Scheduler (매일 03:00 KST)
 
 ### 서비스 흐름 다이어그램
 
+(mermaid가 안 보이는 환경이라면 정적 이미지: [docs/architecture.png](docs/architecture.png))
+
 ```mermaid
 flowchart TB
     Browser["대시보드 (브라우저)<br/>심사 요청 · Critic 테스트 · 지갑 발급"]
