@@ -36,6 +36,48 @@ Cloud Scheduler (매일 03:00 KST)
 
 > "자동 조회"까지는 스케줄러가 매일 실제로 수행한다. "재심사 처리"는 PoC 범위상 후속 텍스트를 준비해둔 신청자 1명(61059)에 한해 검증 완료했다 — 상세는 아래 [PoC 범위 안내](#poc-범위-안내-알려진-제약) 참고.
 
+### 서비스 흐름 다이어그램
+
+```mermaid
+flowchart TB
+    Browser["대시보드 (브라우저)<br/>심사 요청 · Critic 테스트 · 지갑 발급"]
+
+    subgraph Run["Cloud Run — FastAPI (service/main.py)"]
+        API["/underwrite/{id}, /demo/*, /jobs/*"]
+    end
+
+    subgraph AI["Gemini API (google-genai)"]
+        Decision["decision.py<br/>자율 도구선택 루프 (mode=AUTO)"]
+        Critic["critic.py<br/>독립 재검토(Critic Agent)"]
+    end
+
+    subgraph Chain["Solana devnet"]
+        Wallet["임베디드 지갑<br/>(없으면 자동 발급, Passkey 방식)"]
+        Transfer["USDC 송금<br/>(수수료는 treasury 부담, Gasless)"]
+    end
+
+    BQ[("BigQuery<br/>loan_decisions / receipts / reevaluations")]
+    FS[("Firestore<br/>in_progress_decisions (실시간 상태)")]
+    PS(["Pub/Sub: payment-events"])
+    EA["Eventarc 트리거"]
+    WF["Cloud Workflows<br/>영수증 발행"]
+    SCH["Cloud Scheduler<br/>매일 03:00 KST"]
+    SM["Secret Manager<br/>GEMINI_API_KEY"]
+    CB["Cloud Build<br/>gcloud run deploy --source=."]
+
+    Browser -->|POST| API
+    API <--> FS
+    API --> Decision --> Critic
+    Critic --> API
+    API -->|승인/조건부승인| Wallet --> Transfer
+    API --> BQ
+    API -->|이벤트 발행| PS --> EA --> WF --> BQ
+    SCH -->|POST /jobs/reevaluate-due| API
+
+    SM -.->|시크릿 주입| API
+    CB -.->|이미지 빌드·배포| API
+```
+
 ---
 
 ## 기술 스택
@@ -44,7 +86,7 @@ Cloud Scheduler (매일 03:00 KST)
 - **에이전트 & LLM**: Gemini(`gemini-flash-lite-latest`) — `google-genai` SDK의 automatic function calling(mode=AUTO)으로 직접 구현. 도구 호출 여부·순서는 모델이 스스로 판단하며, 호출 로그(`tool_call_log`)로 그 과정을 그대로 노출한다. 1차 판정 이후 별도 Gemini 호출로 동작하는 Critic Agent(`scripts/agent/critic.py`)가 정책 문서 기준으로 판정을 독립 재검토(반박/승인)한다. 자체 구현 RAG(코사인 유사도 기반).
 - **온체인**: Solana devnet, `solana-py`/`solders`, Circle 공식 devnet USDC(SPL Token), SPL Memo(판정 근거 무결성 증명), `base58`
 - **백엔드**: FastAPI, uvicorn, python-multipart
-- **인프라(GCP)**: Cloud Run, BigQuery, Pub/Sub, Eventarc, Cloud Workflows, Cloud Scheduler, Secret Manager, Cloud Build
+- **인프라(GCP)**: Cloud Run, BigQuery, Pub/Sub, Eventarc, Cloud Workflows, Cloud Scheduler, Secret Manager, Cloud Build, Firestore(대시보드 "심사 중" 실시간 상태 공유, `scripts/agent/live_state.py`)
 - **공통**: Python 3.12, pydantic, hashlib(sha256)
 
 > 참고: Google ADK 기반 에이전트(`scripts/agent/adk_agent.py`)도 도구 자율 선택 구조를 프로토타이핑한 별도 스크립트로 남겨뒀다. 실제 배포 경로(`decision.py`)는 이와 동일한 자율 선택 원리를 `google-genai` SDK의 automatic function calling으로 직접 구현했다.
