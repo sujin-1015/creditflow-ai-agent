@@ -185,10 +185,13 @@ gcloud run deploy creditflow-agent \
   --source=. \
   --region=asia-northeast3 \
   --allow-unauthenticated \
-  --set-secrets=GEMINI_API_KEY=gemini-api-key:latest
+  --set-secrets=GEMINI_API_KEY=gemini-api-key:latest \
+  --min-instances=1
 ```
 
 배포 전 `gcloud secrets create gemini-api-key --data-file=-`로 Secret Manager에 키를 등록해야 한다. Pub/Sub 토픽, Eventarc 트리거, Cloud Workflow, Cloud Scheduler 잡은 각 서비스의 표준 `gcloud` 명령으로 별도 생성한다 (`workflows/payment_receipt_workflow.yaml` 참고).
+
+`--min-instances=1`은 콜드 스타트(트래픽이 없어 인스턴스가 0개로 내려갔다가, 다음 요청에서 컨테이너를 새로 기동하며 생기는 지연)를 막기 위한 설정이다 — 라이브 데모 중 첫 요청이 느리게 응답하는 것을 방지한다. 인스턴스 1개를 상시 유지하는 비용이 들지만(기본 CPU 스로틀링 모드에서는 대기 중 메모리 비용만 과금되어 하루 수백 원 수준), 그만한 값어치가 있다고 판단해 적용했다. 트래픽이 정말 없을 때는 `--min-instances=0`으로 되돌려도 된다.
 
 ---
 
