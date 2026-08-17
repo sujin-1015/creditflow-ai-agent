@@ -182,6 +182,15 @@ def _check_hard_caps(applicant_id: int, requested_loan_krw: int) -> None:
         )
 
 
+# 대시보드 "하드 캡 테스트" 버튼용 데모 시나리오. _check_hard_caps()는 지갑 발급/devnet 송금 등
+# 부작용이 전혀 없는 순수 검사라, 실제 심사 없이도 캡이 실제로 차단/통과하는지 즉시 보여줄 수 있다.
+HARD_CAP_DEMO_SCENARIOS = {
+    "violation": 6_000_000,  # 건별 하드 캡(500만원) 초과
+    "clean": 100_000,  # 한도 이내 정상 범위
+}
+HARD_CAP_DEMO_APPLICANT_ID = 999999
+
+
 def disburse_loan(
     applicant_id: int,
     decision: str,

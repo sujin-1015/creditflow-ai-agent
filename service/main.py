@@ -197,6 +197,28 @@ def demo_repay(applicant_id: int = Form(...), key: str = Form(...)):
     }
 
 
+@app.post("/demo/hard-cap-test")
+def demo_hard_cap_test(scenario: str = Form(...), key: str = Form(...)):
+    """하드 캡 단독 데모 — 지갑 발급이나 devnet 송금 없이 payment_mock._check_hard_caps()만
+    실행해, 건별 한도 초과 요청이 실제로 그 자리에서 차단되는지 즉시 보여준다."""
+    if not DEMO_KEY or key != DEMO_KEY:
+        raise HTTPException(status_code=403, detail="진행 권한이 없습니다.")
+    if scenario not in payment_mock.HARD_CAP_DEMO_SCENARIOS:
+        raise HTTPException(status_code=400, detail="알 수 없는 시나리오입니다.")
+
+    amount = payment_mock.HARD_CAP_DEMO_SCENARIOS[scenario]
+    try:
+        payment_mock._check_hard_caps(payment_mock.HARD_CAP_DEMO_APPLICANT_ID, amount)
+        return {
+            "scenario": scenario,
+            "requested_krw": amount,
+            "blocked": False,
+            "message": f"{amount:,}원 요청 — 하드 캡(건별 {payment_mock.PER_TX_HARD_CAP_KRW:,}원) 이내라 정상 통과했습니다.",
+        }
+    except payment_mock.FundControlError as e:
+        return {"scenario": scenario, "requested_krw": amount, "blocked": True, "message": str(e)}
+
+
 @app.post("/demo/critic-test")
 def demo_critic_test(scenario: str = Form(...), key: str = Form(...)):
     """Critic Agent 단독 데모 — 1차 판정 에이전트를 거치지 않고, 미리 준비된 시나리오(정책
@@ -801,6 +823,21 @@ def status_page(delete_error: str = None):
       </form>
       <div id="repay-result" class="critic-test-result"></div>
     </section>
+
+    <section class="card">
+      <div class="card-head">
+        <div class="card-title">하드 캡 테스트</div>
+        <div class="card-note">지갑 발급·devnet 송금 없이 건별 한도 체크만 실행 — 통제된 자금(Controlled Funds) 증명 (진행 키 필요)</div>
+      </div>
+      <form id="hardcap-test-form" class="demo-form">
+        <select name="scenario" id="hardcap-scenario-select">
+          <option value="violation">위반 시나리오 — 6,000,000원 요청 (건별 한도 500만원 초과)</option>
+          <option value="clean">정상 시나리오 — 100,000원 요청 (한도 이내)</option>
+        </select>
+        <button type="submit" class="run-btn">테스트 실행</button>
+      </form>
+      <div id="hardcap-test-result" class="critic-test-result"></div>
+    </section>
   </div>
 
   <script>
@@ -940,6 +977,41 @@ def status_page(delete_error: str = None):
         }}
         resultEl.innerHTML = out;
         refreshLiveRegion();
+      }} catch (err) {{
+        resultEl.textContent = '요청 중 오류가 발생했습니다.';
+      }}
+    }});
+
+    document.getElementById('hardcap-test-form').addEventListener('submit', async function (e) {{
+      e.preventDefault();
+      const key = getDemoKey();
+      if (!key) return;
+      const scenario = document.getElementById('hardcap-scenario-select').value;
+      const resultEl = document.getElementById('hardcap-test-result');
+      resultEl.style.display = 'block';
+      resultEl.textContent = '하드 캡 체크 중…';
+      const body = new URLSearchParams({{scenario: scenario, key: key}});
+      try {{
+        const res = await fetch('/demo/hard-cap-test', {{method: 'POST', body: body}});
+        if (res.status === 403) {{
+          resultEl.textContent = '키가 틀렸습니다. 다시 시도해 주세요.';
+          return;
+        }}
+        if (!res.ok) {{
+          let detail = '테스트 실패';
+          try {{
+            const errBody = await res.json();
+            if (errBody.detail) detail = errBody.detail;
+          }} catch (parseErr) {{ /* 본문이 JSON이 아니면 기본 메시지 사용 */ }}
+          resultEl.textContent = detail;
+          return;
+        }}
+        const data = await res.json();
+        const badgeCls = data.blocked ? 'badge-reject' : 'badge-approve';
+        const label = data.blocked ? '차단됨 (BLOCKED)' : '통과 (PASSED)';
+        let out = '<span class="badge ' + badgeCls + '"><span class="badge-dot"></span>' + data.requested_krw.toLocaleString() + '원 요청 — ' + label + '</span>';
+        out += '<div style="margin-top:8px; color:var(--ink-2)">' + escapeHtml(data.message) + '</div>';
+        resultEl.innerHTML = out;
       }} catch (err) {{
         resultEl.textContent = '요청 중 오류가 발생했습니다.';
       }}
