@@ -73,7 +73,7 @@ flowchart TB
     API --> Decision --> Critic
     Critic --> API
     API -->|승인/조건부승인| Wallet --> Transfer
-    API -->|상환 시뮬레이션| Repay
+    API -->|상환 실행| Repay
     Transfer --> BQ
     Repay -->|상환 이력 기록| BQ
     BQ -.->|get_repayment_history_tool: 재심사 시 참고| Decision

@@ -319,7 +319,7 @@ def collect_repayment(
     (실제 대출 원금/이자 스케줄 계산은 이 PoC 범위 밖).
     """
     amount_usdc = DEVNET_TEST_AMOUNT_USDC if amount_usdc is None else amount_usdc
-    rationale = rationale or f"신청자 {applicant_id} devnet 상환 시뮬레이션"
+    rationale = rationale or f"신청자 {applicant_id} devnet 상환 실행 (데모용 고정 소액)"
     now = datetime.now(timezone.utc).isoformat()
     r_hash = _rationale_hash(rationale)
     memo = f"FundBridge|applicant={applicant_id}|type=repayment|sha256={r_hash}"

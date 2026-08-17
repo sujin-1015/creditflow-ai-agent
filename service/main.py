@@ -180,7 +180,7 @@ def demo_underwrite(applicant_id: int = Form(...), key: str = Form(...)):
 
 @app.post("/demo/repay")
 def demo_repay(applicant_id: int = Form(...), key: str = Form(...)):
-    """상환 시뮬레이션 — 지급의 역방향(신청자 지갑 -> treasury). loan_decisions와는 별도인
+    """상환 실행 — 지급의 역방향(신청자 지갑 -> treasury). 실제 devnet 트랜잭션이며, loan_decisions와는 별도인
     repayments 테이블에만 기록되고, 대시보드의 심사 이력/재심사 이력에는 영향을 주지 않는다."""
     if not DEMO_KEY or key != DEMO_KEY:
         raise HTTPException(status_code=403, detail="진행 권한이 없습니다.")
@@ -812,7 +812,7 @@ def status_page(delete_error: str = None):
 
     <section class="card">
       <div class="card-head">
-        <div class="card-title">상환 시뮬레이션</div>
+        <div class="card-title">상환 실행</div>
         <div class="card-note">지급의 역방향 — 신청자 지갑에서 treasury로 상환 (진행 키 필요)</div>
       </div>
       <form id="repay-form" class="demo-form">
