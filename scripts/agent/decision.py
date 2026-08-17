@@ -7,6 +7,7 @@
          - explain_prediction_tool                      : SHAP 기여도 확인 (필요하다고 판단할 때만)
          - summarize_business_tool                       : 정성 정보(사업자 설명) 구조화 요약
          - retrieve_policy_tool                          : 정책 조항 검색(RAG) — 질의문도 모델이 직접 작성
+         - get_repayment_history_tool                     : 과거 상환 이력 조회 (재심사 시에만 의미 있음 — 최초 심사는 보통 빈 이력)
          - record_decision_tool                          : 최종 판정 제출 (반드시 마지막에 호출)
        SDK가 "도구 호출 -> 결과 반환 -> 다음 행동 결정"을 모델이 텍스트만 응답할 때까지 자동
        반복한다. 각 호출은 tool_call_log에 순서대로 기록되어, 하드코딩된 순서가 아니라
@@ -23,6 +24,7 @@ from dataclasses import dataclass, field
 
 from google.genai import types
 
+from bigquery_logger import get_repayment_history
 from business_text import get_business_description, summarize_business_text
 from critic import review_decision
 from data_tools import explain_prediction, get_applicant_data, predict_risk
@@ -72,16 +74,23 @@ record_decision을 정확히 한 번 호출해 최종 판정을 제출하세요.
 - explain_prediction_tool(applicant_id): SHAP 기여도 분석. 정량 등급이 애매하거나(conditional) 판정 근거를 더 명확히 뒷받침하고 싶을 때만 호출하세요.
 - summarize_business_tool(applicant_id): 신청자가 제출한 사업 설명(정성 정보)을 구조화 요약. 정성 정보를 판정에 반영하려면 호출하세요.
 - retrieve_policy_tool(query): 대출 정책 문서에서 관련 조항 검색. 판정 근거로 정책을 인용하려면, 현재 상황(등급/매출추세/위험신호 등)을 요약한 질의로 호출하세요.
+- get_repayment_history_tool(applicant_id): 이 신청자의 과거 상환 이력 조회. 재심사(이미 한 번 집행된 건을 다시 심사하는 경우) 상황에서만 의미가 있습니다 — 상환 이력이 있고 연체 없이 정상 상환했다면 신뢰도를 높이는 정성 근거로 쓸 수 있습니다. 최초 심사는 이력이 비어있는 게 정상이니 굳이 호출할 필요는 없습니다.
 - record_decision_tool(...): 모든 정보 수집이 끝나면 마지막에 정확히 한 번 호출해 최종 판정과 근거를 제출하세요.
 
 ## 판정 시 유의사항
 - 정량 등급이 "reject"이면 정성 조정으로 상향할 수 없습니다 (정책 3항).
 - 정량 등급이 "conditional"인데 명확한 매출 회복/통제 가능한 감소 사유가 있으면 "approve"로 상향 검토하세요.
 - 정량 등급이 "approve"라도 폐업 임박/임대 문제/주요 매출처 이탈 등 심각한 위험 신호가 있으면 "conditional"로 하향 검토하세요.
+- 상환 이력이 있고 정상 상환 중이라면(연체 없음) 상향 검토에 긍정적 근거로 반영할 수 있습니다.
 - decision_reasoning에는 정량 확률, 정성 요약, 참고한 정책 조항을 종합해 한국어 3~5문장으로 서술하세요.
-
+{reevaluation_note}
 신청자 ID: {applicant_id}
 """
+
+REEVALUATION_NOTE = (
+    "\n## 참고\n이 신청자는 과거에 이미 한 번 심사·집행된 건에 대한 재심사 대상입니다. "
+    "get_repayment_history_tool로 상환 이력을 반드시 확인하고, 판정 근거에 반영하세요.\n"
+)
 
 
 def _preview(value, limit: int = 200) -> str:
@@ -105,7 +114,7 @@ def _summarize_tool_log(tool_call_log: list[dict]) -> str:
     return " → ".join(parts)
 
 
-def make_final_decision(applicant_id: int) -> FinalDecisionResult:
+def make_final_decision(applicant_id: int, is_reevaluation: bool = False) -> FinalDecisionResult:
     tool_call_log: list[dict] = []
     captured: dict = {"policy_hits": []}
 
@@ -170,6 +179,18 @@ def make_final_decision(applicant_id: int) -> FinalDecisionResult:
         _log("retrieve_policy", {"query": query}, hits)
         return hits
 
+    def get_repayment_history_tool(applicant_id: int) -> list[dict]:
+        """이 신청자의 과거 상환 이력(온체인 상환 트랜잭션 기록)을 조회한다. 재심사 상황에서만
+        의미가 있다 — 최초 심사는 이력이 비어있는 게 정상이다.
+
+        Args:
+            applicant_id: 신청자 고유 ID.
+        """
+        history = get_repayment_history(applicant_id)
+        captured["repayment_history"] = history
+        _log("get_repayment_history", {"applicant_id": applicant_id}, history)
+        return history
+
     def record_decision_tool(
         final_decision: str,
         adjustment_applied: bool,
@@ -198,7 +219,10 @@ def make_final_decision(applicant_id: int) -> FinalDecisionResult:
     generate = with_rate_limit_retry(client.models.generate_content)
     generate(
         model=DECISION_MODEL,
-        contents=AGENT_INSTRUCTION.format(applicant_id=applicant_id),
+        contents=AGENT_INSTRUCTION.format(
+            applicant_id=applicant_id,
+            reevaluation_note=REEVALUATION_NOTE if is_reevaluation else "",
+        ),
         config=types.GenerateContentConfig(
             tools=[
                 get_applicant_data_tool,
@@ -206,6 +230,7 @@ def make_final_decision(applicant_id: int) -> FinalDecisionResult:
                 explain_prediction_tool,
                 summarize_business_tool,
                 retrieve_policy_tool,
+                get_repayment_history_tool,
                 record_decision_tool,
             ],
             automatic_function_calling=types.AutomaticFunctionCallingConfig(maximum_remote_calls=10),

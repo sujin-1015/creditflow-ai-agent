@@ -173,6 +173,25 @@ def demo_underwrite(applicant_id: int = Form(...), key: str = Form(...)):
     return underwrite(applicant_id)
 
 
+@app.post("/demo/repay")
+def demo_repay(applicant_id: int = Form(...), key: str = Form(...)):
+    """상환 시뮬레이션 — 지급의 역방향(신청자 지갑 -> treasury). loan_decisions와는 별도인
+    repayments 테이블에만 기록되고, 대시보드의 심사 이력/재심사 이력에는 영향을 주지 않는다."""
+    if not DEMO_KEY or key != DEMO_KEY:
+        raise HTTPException(status_code=403, detail="진행 권한이 없습니다.")
+    try:
+        result = payment_mock.collect_repayment(applicant_id)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"상환 처리 실패: {e}")
+    return {
+        "applicant_id": result.applicant_id,
+        "amount_usdc": result.amount_usdc,
+        "tx_signature": result.tx_signature,
+        "explorer_url": result.explorer_url,
+        "status": result.status,
+    }
+
+
 @app.post("/demo/critic-test")
 def demo_critic_test(scenario: str = Form(...), key: str = Form(...)):
     """Critic Agent 단독 데모 — 1차 판정 에이전트를 거치지 않고, 미리 준비된 시나리오(정책
@@ -763,6 +782,20 @@ def status_page(delete_error: str = None):
       </form>
       <div id="critic-test-result" class="critic-test-result"></div>
     </section>
+
+    <section class="card">
+      <div class="card-head">
+        <div class="card-title">상환 시뮬레이션</div>
+        <div class="card-note">지급의 역방향 — 신청자 지갑에서 treasury로 상환 (진행 키 필요)</div>
+      </div>
+      <form id="repay-form" class="demo-form">
+        <select name="applicant_id" id="repay-applicant-select">
+          {_applicant_options_html()}
+        </select>
+        <button type="submit" class="run-btn">상환 실행</button>
+      </form>
+      <div id="repay-result" class="critic-test-result"></div>
+    </section>
   </div>
 
   <script>
@@ -866,6 +899,42 @@ def status_page(delete_error: str = None):
           out += '<div style="margin-top:6px; color:var(--bad); font-weight:600">⚠ 위반 조항: ' + escapeHtml(data.policy_violation) + '</div>';
         }}
         resultEl.innerHTML = out;
+      }} catch (err) {{
+        resultEl.textContent = '요청 중 오류가 발생했습니다.';
+      }}
+    }});
+
+    document.getElementById('repay-form').addEventListener('submit', async function (e) {{
+      e.preventDefault();
+      const key = getDemoKey();
+      if (!key) return;
+      const applicantId = document.getElementById('repay-applicant-select').value;
+      const resultEl = document.getElementById('repay-result');
+      resultEl.style.display = 'block';
+      resultEl.textContent = '상환 처리 중…';
+      const body = new URLSearchParams({{applicant_id: applicantId, key: key}});
+      try {{
+        const res = await fetch('/demo/repay', {{method: 'POST', body: body}});
+        if (res.status === 403) {{
+          resultEl.textContent = '키가 틀렸습니다. 다시 시도해 주세요.';
+          return;
+        }}
+        if (!res.ok) {{
+          let detail = '상환 처리 실패';
+          try {{
+            const errBody = await res.json();
+            if (errBody.detail) detail = errBody.detail;
+          }} catch (parseErr) {{ /* 본문이 JSON이 아니면 기본 메시지 사용 */ }}
+          resultEl.textContent = detail;
+          return;
+        }}
+        const data = await res.json();
+        let out = '<span class="badge badge-approve"><span class="badge-dot"></span>상환 완료: ' + data.amount_usdc.toFixed(2) + ' USDC</span>';
+        if (data.explorer_url) {{
+          out += '<div style="margin-top:8px"><a class="txlink" href="' + data.explorer_url + '" target="_blank" rel="noopener">' + walletAddrShort(data.tx_signature) + '</a></div>';
+        }}
+        resultEl.innerHTML = out;
+        refreshLiveRegion();
       }} catch (err) {{
         resultEl.textContent = '요청 중 오류가 발생했습니다.';
       }}

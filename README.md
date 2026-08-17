@@ -55,10 +55,11 @@ flowchart TB
 
     subgraph Chain["Solana devnet"]
         Wallet["임베디드 지갑<br/>(없으면 자동 발급, Passkey 방식)"]
-        Transfer["USDC 송금<br/>(수수료는 treasury 부담, Gasless)"]
+        Transfer["USDC 지급<br/>(treasury → 신청자, 수수료 treasury 부담)"]
+        Repay["USDC 상환<br/>(신청자 → treasury, 지급의 역방향)"]
     end
 
-    BQ[("BigQuery<br/>loan_decisions / receipts / reevaluations")]
+    BQ[("BigQuery<br/>loan_decisions / receipts / reevaluations / repayments")]
     FS[("Firestore<br/>in_progress_decisions (실시간 상태)")]
     PS(["Pub/Sub: payment-events"])
     EA["Eventarc 트리거"]
@@ -72,6 +73,10 @@ flowchart TB
     API --> Decision --> Critic
     Critic --> API
     API -->|승인/조건부승인| Wallet --> Transfer
+    API -->|상환 시뮬레이션| Repay
+    Transfer --> BQ
+    Repay -->|상환 이력 기록| BQ
+    BQ -.->|get_repayment_history_tool: 재심사 시 참고| Decision
     API --> BQ
     API -->|이벤트 발행| PS --> EA --> WF --> BQ
     SCH -->|POST /jobs/reevaluate-due| API
@@ -79,6 +84,8 @@ flowchart TB
     SM -.->|시크릿 주입| API
     CB -.->|이미지 빌드·배포| API
 ```
+
+**상환 루프**: `PoC 심사` → `지급(집행에 대한 검증 가능성 확보 — 온체인 메모)` → `상환(온체인, 지급의 역방향)` → `USDC 회수(treasury)` → `상환 이력 메모 기록(BigQuery)` → `재심사 입력으로 피드백(get_repayment_history_tool)`. 실제 원금/이자 상환 스케줄 계산은 PoC 범위 밖이며, devnet 왕복 증빙용 고정 소액으로 흐름만 시연한다.
 
 ---
 

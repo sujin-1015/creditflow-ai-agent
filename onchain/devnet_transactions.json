@@ -231,5 +231,23 @@
     "applicant_balance_before_usdc": 1.0,
     "applicant_balance_after_usdc": 2.0,
     "explorer_url": "https://explorer.solana.com/tx/23TQw5neDc6X2P7PVr3p64PjAhJDqpaFXQh1xk82MHqvLh7AdtWn58WzBTh7XvyrhHKhUjzgKXHYA2LsfqWn7sh9?cluster=devnet"
+  },
+  {
+    "direction": "repayment",
+    "network": "solana-devnet",
+    "currency": "USDC",
+    "mint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+    "rpc_url": "https://api.devnet.solana.com",
+    "applicant_id": 142764,
+    "applicant_wallet": "5codcrUqm57DYpt2brr83FvbmijYX762EmHfXJP9sBEF",
+    "treasury_wallet": "HzKwJFeKE1ui69vh98t3wSRxFPz69sPqK8JDWjWRqp7W",
+    "amount_micro_usdc": 1000000,
+    "amount_usdc": 1.0,
+    "memo": "FundBridge|applicant=142764|type=repayment|sha256=81f0335916071044ab2cf2816494f45d64d9f7796464a3d6de73fa64a255f44b",
+    "tx_signature": "6CoUbNtHAn3sND91wzKJGXKFNko1EVpT91EGiBorm6vCpw83s1EphYcc1qc3GpD1rTUDvcyBckrb53J4o4N3Tq6",
+    "confirmed": true,
+    "treasury_balance_before_usdc": 19.5,
+    "treasury_balance_after_usdc": 20.5,
+    "explorer_url": "https://explorer.solana.com/tx/6CoUbNtHAn3sND91wzKJGXKFNko1EVpT91EGiBorm6vCpw83s1EphYcc1qc3GpD1rTUDvcyBckrb53J4o4N3Tq6?cluster=devnet"
   }
 ]

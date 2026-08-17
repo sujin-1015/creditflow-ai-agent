@@ -41,7 +41,7 @@ def reevaluate(applicant_id: int, followup_text: str | None = None) -> dict:
     # 재심사 시점의 최신 상황으로 사업자 설명을 교체 (원본 데모용 텍스트는 다른 프로세스에 영향 없음)
     business_text.SAMPLE_BUSINESS_DESCRIPTIONS[applicant_id] = followup_text
 
-    new_result = make_final_decision(applicant_id)
+    new_result = make_final_decision(applicant_id, is_reevaluation=True)
     upgraded = new_result.final_decision == "approve"
 
     reeval_record = {

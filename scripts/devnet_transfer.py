@@ -196,6 +196,67 @@ async def transfer_usdc(
     raise last_error
 
 
+async def transfer_usdc_from(
+    client: AsyncClient,
+    fee_payer: Keypair,
+    authority: Keypair,
+    recipient: Pubkey,
+    micro_usdc: int,
+    memo: Optional[str] = None,
+) -> str:
+    """devnet USDC를 authority 소유 계좌에서 recipient로 전송하되, 수수료는 fee_payer가 낸다.
+
+    상환(신청자 -> treasury) 시나리오 전용: 자금 출처(authority)는 신청자 지갑이지만,
+    가스비는 지급 때와 마찬가지로 treasury가 대신 부담해 신청자는 여전히 Gasless로
+    이용한다. `transfer_usdc`는 fee_payer == authority인 경우(지급, treasury -> 신청자)
+    전용이라 이 케이스를 표현할 수 없어 별도로 둔다.
+    """
+    authority_ata = get_associated_token_address(authority.pubkey(), USDC_DEVNET_MINT)
+    recipient_ata = get_associated_token_address(recipient, USDC_DEVNET_MINT)
+
+    create_ata_ix = create_idempotent_associated_token_account(
+        payer=fee_payer.pubkey(), owner=recipient, mint=USDC_DEVNET_MINT
+    )
+    transfer_ix = transfer_checked(
+        spl_models.TransferCheckedParams(
+            program_id=TOKEN_PROGRAM_ID,
+            source=authority_ata,
+            mint=USDC_DEVNET_MINT,
+            dest=recipient_ata,
+            owner=authority.pubkey(),
+            amount=micro_usdc,
+            decimals=USDC_DECIMALS,
+        )
+    )
+    instructions = [create_ata_ix, transfer_ix]
+    if memo:
+        instructions.append(_memo_instruction(memo, authority.pubkey()))
+
+    last_error = None
+    for attempt in range(5):
+        blockhash_resp = await client.get_latest_blockhash(commitment=Finalized)
+        recent_blockhash = blockhash_resp.value.blockhash
+
+        message = Message.new_with_blockhash(
+            instructions, fee_payer.pubkey(), recent_blockhash
+        )
+        tx = Transaction.new_unsigned(message)
+        tx.sign([fee_payer, authority], recent_blockhash)
+
+        try:
+            send_resp = await client.send_transaction(
+                tx, opts=TxOptsModel(skip_preflight=True, preflight_commitment=Finalized)
+            )
+            signature = send_resp.value
+            await client.confirm_transaction(signature, commitment=Confirmed)
+            return str(signature)
+        except Exception as e:  # noqa: BLE001
+            last_error = e
+            await asyncio.sleep(2)
+
+    raise last_error
+
+
 async def _send_devnet_usdc_payment(
     recipient_pubkey_str: str, amount_usdc: float, memo: Optional[str] = None
 ) -> dict:
@@ -243,6 +304,66 @@ def send_devnet_usdc_payment(
 ) -> dict:
     """동기 진입점. payment_mock.py 등 sync 코드에서 바로 호출한다."""
     return asyncio.run(_send_devnet_usdc_payment(recipient_pubkey_str, amount_usdc, memo=memo))
+
+
+async def _send_devnet_usdc_repayment(
+    applicant_id: int, amount_usdc: float, memo: Optional[str] = None
+) -> dict:
+    """상환(신청자 지갑 -> agent_treasury). 지급의 역방향 — 자금 출처는 신청자 지갑이지만
+    가스비는 여전히 treasury가 부담한다(Gasless 유지)."""
+    name = f"applicant_{applicant_id}"
+    if not wallet_exists(name):
+        raise RuntimeError(f"신청자 {applicant_id}의 지갑이 없어 상환을 처리할 수 없습니다 (대출 집행 이력이 없는 것으로 보임).")
+
+    applicant = load_or_create_keypair(name)
+    treasury = load_or_create_keypair("agent_treasury")
+    micro_usdc = int(round(amount_usdc * 10**USDC_DECIMALS))
+
+    async with AsyncClient(DEVNET_RPC) as client:
+        # 가스비는 treasury가 부담하므로 treasury의 SOL 잔액만 확인하면 된다.
+        await ensure_funded(client, treasury.pubkey(), 5_000_000)
+
+        applicant_balance = await get_usdc_balance(client, applicant.pubkey())
+        if applicant_balance < micro_usdc:
+            raise RuntimeError(
+                f"신청자 {applicant_id} 지갑의 USDC 잔액 부족 "
+                f"({applicant_balance / 10**USDC_DECIMALS:.2f} USDC) — 상환할 금액({amount_usdc:.2f} USDC)보다 적습니다."
+            )
+
+        before = await get_usdc_balance(client, treasury.pubkey())
+        signature = await transfer_usdc_from(
+            client, fee_payer=treasury, authority=applicant, recipient=treasury.pubkey(),
+            micro_usdc=micro_usdc, memo=memo,
+        )
+        after = await get_usdc_balance(client, treasury.pubkey())
+
+    record = {
+        "direction": "repayment",
+        "network": "solana-devnet",
+        "currency": "USDC",
+        "mint": str(USDC_DEVNET_MINT),
+        "rpc_url": DEVNET_RPC,
+        "applicant_id": applicant_id,
+        "applicant_wallet": str(applicant.pubkey()),
+        "treasury_wallet": str(treasury.pubkey()),
+        "amount_micro_usdc": micro_usdc,
+        "amount_usdc": amount_usdc,
+        "memo": memo,
+        "tx_signature": signature,
+        "confirmed": True,
+        "treasury_balance_before_usdc": before / 10**USDC_DECIMALS,
+        "treasury_balance_after_usdc": after / 10**USDC_DECIMALS,
+        "explorer_url": f"https://explorer.solana.com/tx/{signature}?cluster=devnet",
+    }
+    _append_log(record)
+    return record
+
+
+def send_devnet_usdc_repayment(
+    applicant_id: int, amount_usdc: float, memo: Optional[str] = None
+) -> dict:
+    """동기 진입점. payment_mock.py 등 sync 코드에서 바로 호출한다."""
+    return asyncio.run(_send_devnet_usdc_repayment(applicant_id, amount_usdc, memo=memo))
 
 
 async def _fetch_memo(client: AsyncClient, signature: str) -> Optional[str]:

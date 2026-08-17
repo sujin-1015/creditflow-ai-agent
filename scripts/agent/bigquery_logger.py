@@ -168,6 +168,75 @@ def log_reevaluation(record: dict) -> None:
         raise RuntimeError(f"BigQuery insert 실패: {errors}")
 
 
+REPAYMENTS_TABLE_ID = "repayments"
+
+REPAYMENTS_SCHEMA = [
+    bigquery.SchemaField("applicant_id", "INTEGER", mode="REQUIRED"),
+    bigquery.SchemaField("amount_usdc", "FLOAT"),
+    bigquery.SchemaField("currency", "STRING"),
+    bigquery.SchemaField("status", "STRING"),
+    bigquery.SchemaField("tx_signature", "STRING"),
+    bigquery.SchemaField("explorer_url", "STRING"),
+    bigquery.SchemaField("network", "STRING"),
+    bigquery.SchemaField("is_mock", "BOOLEAN"),
+    bigquery.SchemaField("timestamp", "TIMESTAMP", mode="REQUIRED"),
+    bigquery.SchemaField("rationale", "STRING"),
+    bigquery.SchemaField("rationale_hash", "STRING"),  # sha256(rationale) — 온체인 메모와 대조해 위변조 검증
+]
+
+
+def ensure_repayments_table() -> bigquery.Table:
+    """지급의 역방향(신청자 -> treasury) 상환 기록 테이블."""
+    client = get_client()
+    dataset_ref = bigquery.DatasetReference(PROJECT_ID, DATASET_ID)
+    table_ref = dataset_ref.table(REPAYMENTS_TABLE_ID)
+    try:
+        return client.get_table(table_ref)
+    except Exception:
+        table = bigquery.Table(table_ref, schema=REPAYMENTS_SCHEMA)
+        table = client.create_table(table)
+        print(f"BigQuery 테이블 생성: {PROJECT_ID}.{DATASET_ID}.{REPAYMENTS_TABLE_ID}")
+        return table
+
+
+def log_repayment(record: dict) -> None:
+    table = ensure_repayments_table()
+    client = get_client()
+    row = {
+        "applicant_id": record["applicant_id"],
+        "amount_usdc": record.get("amount_usdc"),
+        "currency": record.get("currency"),
+        "status": record.get("status"),
+        "tx_signature": record.get("tx_signature"),
+        "explorer_url": record.get("explorer_url"),
+        "network": record.get("network"),
+        "is_mock": record.get("is_mock"),
+        "timestamp": record.get("timestamp") or datetime.now(timezone.utc).isoformat(),
+        "rationale": record.get("rationale"),
+        "rationale_hash": record.get("rationale_hash"),
+    }
+    errors = client.insert_rows_json(table, [row])
+    if errors:
+        raise RuntimeError(f"BigQuery insert 실패: {errors}")
+
+
+def get_repayment_history(applicant_id: int) -> list[dict]:
+    """신청자의 상환 이력을 조회한다 — 재심사 시 에이전트가 스스로 참고할 수 있는 도구로 쓰인다
+    (decision.py의 get_repayment_history_tool 참고)."""
+    ensure_repayments_table()
+    client = get_client()
+    query = f"""
+        SELECT amount_usdc, currency, status, tx_signature, timestamp
+        FROM `{PROJECT_ID}.{DATASET_ID}.{REPAYMENTS_TABLE_ID}`
+        WHERE applicant_id = @applicant_id
+        ORDER BY timestamp DESC
+    """
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[bigquery.ScalarQueryParameter("applicant_id", "INT64", applicant_id)]
+    )
+    return [dict(row) for row in client.query(query, job_config=job_config).result()]
+
+
 def already_reevaluated(applicant_id: int) -> bool:
     ensure_reeval_table()
     client = get_client()

@@ -28,6 +28,7 @@ MOCK_MODE = False  # True로 바꾸면 실제 devnet 호출 없이 로컬 시뮬
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 LOG_PATH = BASE_DIR / "onchain" / "payments_log.json"
+REPAY_LOG_PATH = BASE_DIR / "onchain" / "repayments_log.json"
 
 DEVNET_TEST_AMOUNT_USDC = 1.00  # devnet 왕복 증빙용 고정 소액 (실제 대출액과 별개)
 CONDITIONAL_AMOUNT_USDC = DEVNET_TEST_AMOUNT_USDC / 2  # 정책 3항: 조건부승인은 한도의 50%만 우선 집행
@@ -71,6 +72,27 @@ class PaymentResult:
     wallet_newly_issued: bool = False
 
 
+@dataclass
+class RepaymentResult:
+    """지급의 역방향 — 신청자 지갑에서 agent_treasury로 되돌아오는 상환 트랜잭션 결과.
+
+    devnet PoC에서는 실제 대출 원금/이자 스케줄을 계산하지 않고, 지급 때와 동일한
+    devnet 왕복 증빙용 고정 소액(DEVNET_TEST_AMOUNT_USDC)을 상환하는 것으로 시연한다.
+    """
+
+    applicant_id: int
+    amount_usdc: float
+    currency: str
+    status: str  # "EXECUTED"
+    tx_signature: Optional[str]
+    network: str
+    is_mock: bool
+    timestamp: str
+    rationale: str
+    rationale_hash: Optional[str] = None
+    explorer_url: Optional[str] = None
+
+
 def _fake_tx_signature() -> str:
     return "".join(secrets.choice(_B58_ALPHABET) for _ in range(88))
 
@@ -106,6 +128,29 @@ def _execute_transfer(
 ) -> tuple[str, str]:
     transfer_fn = _mock_pay_transfer if MOCK_MODE else _real_pay_transfer
     return transfer_fn(wallet_address, amount_usdc, memo=memo)
+
+
+def _real_collect_transfer(
+    applicant_id: int, amount_usdc: float, memo: Optional[str] = None
+) -> tuple[str, str]:
+    """devnet_transfer.py를 통해 신청자 지갑 -> treasury로 실제 상환 트랜잭션을 실행한다."""
+    record = devnet_transfer.send_devnet_usdc_repayment(applicant_id, amount_usdc, memo=memo)
+    return record["tx_signature"], record["explorer_url"]
+
+
+def _mock_collect_transfer(
+    applicant_id: int, amount_usdc: float, memo: Optional[str] = None
+) -> tuple[str, str]:
+    time.sleep(0.05)
+    sig = _fake_tx_signature()
+    return sig, f"https://explorer.solana.com/tx/{sig}?cluster=devnet (MOCK — 실제 tx 아님)"
+
+
+def _execute_collection(
+    applicant_id: int, amount_usdc: float, memo: Optional[str] = None
+) -> tuple[str, str]:
+    collect_fn = _mock_collect_transfer if MOCK_MODE else _real_collect_transfer
+    return collect_fn(applicant_id, amount_usdc, memo=memo)
 
 
 def disburse_loan(
@@ -221,6 +266,43 @@ def disburse_remaining(
     return result
 
 
+def collect_repayment(
+    applicant_id: int,
+    amount_usdc: Optional[float] = None,
+    rationale: str = "",
+) -> RepaymentResult:
+    """상환을 처리한다 (신청자 지갑 -> agent_treasury) — 지급의 역방향 흐름.
+
+    지급과 마찬가지로 온체인 메모에 근거 해시를 남겨, 상환이 실제로 어떤 근거(정책/신청자)에
+    따라 이뤄졌는지 검증 가능하게 한다. amount_usdc를 지정하지 않으면 지급 때와 동일한
+    devnet 왕복 증빙용 고정 소액(DEVNET_TEST_AMOUNT_USDC)을 상환하는 것으로 간주한다
+    (실제 대출 원금/이자 스케줄 계산은 이 PoC 범위 밖).
+    """
+    amount_usdc = DEVNET_TEST_AMOUNT_USDC if amount_usdc is None else amount_usdc
+    rationale = rationale or f"신청자 {applicant_id} devnet 상환 시뮬레이션"
+    now = datetime.now(timezone.utc).isoformat()
+    r_hash = _rationale_hash(rationale)
+    memo = f"FundBridge|applicant={applicant_id}|type=repayment|sha256={r_hash}"
+
+    tx_signature, explorer_url = _execute_collection(applicant_id, amount_usdc, memo=memo)
+
+    result = RepaymentResult(
+        applicant_id=applicant_id,
+        amount_usdc=amount_usdc,
+        currency=CURRENCY,
+        status="EXECUTED",
+        tx_signature=tx_signature,
+        network="solana-devnet-mock" if MOCK_MODE else "solana-devnet",
+        is_mock=MOCK_MODE,
+        timestamp=now,
+        rationale=rationale,
+        rationale_hash=r_hash,
+        explorer_url=explorer_url,
+    )
+    _append_repayment_log(result)
+    return result
+
+
 def _append_log(result: PaymentResult) -> None:
     LOG_PATH.parent.mkdir(exist_ok=True)
     records = []
@@ -236,3 +318,19 @@ def _append_log(result: PaymentResult) -> None:
     except Exception as e:  # noqa: BLE001
         # 로컬 JSON은 이미 저장 완료 — BigQuery는 감사/조회용 보조 기록이라 실패해도 흐름을 막지 않는다.
         print(f"  [경고] BigQuery 기록 실패 (로컬 로그는 정상 저장됨): {e}")
+
+
+def _append_repayment_log(result: RepaymentResult) -> None:
+    REPAY_LOG_PATH.parent.mkdir(exist_ok=True)
+    records = []
+    if REPAY_LOG_PATH.exists():
+        with open(REPAY_LOG_PATH, encoding="utf-8") as f:
+            records = json.load(f)
+    records.append(asdict(result))
+    with open(REPAY_LOG_PATH, "w", encoding="utf-8") as f:
+        json.dump(records, f, ensure_ascii=False, indent=2)
+
+    try:
+        bigquery_logger.log_repayment(asdict(result))
+    except Exception as e:  # noqa: BLE001
+        print(f"  [경고] BigQuery 상환 기록 실패 (로컬 로그는 정상 저장됨): {e}")
