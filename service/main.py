@@ -108,6 +108,11 @@ def underwrite(applicant_id: int):
                 critic_reasoning=decision_result.critic_reasoning,
                 tool_call_summary=decision_result.tool_call_summary,
             )
+        except payment_mock.FundControlError as e:
+            raise HTTPException(
+                status_code=403,
+                detail=f"판정은 '{decision_result.final_decision}'이었으나 자금 통제(하드 캡)에 의해 집행이 차단됐습니다: {e}",
+            )
         except payment_mock.DisbursementError as e:
             wallet_note = ""
             if e.wallet_address:

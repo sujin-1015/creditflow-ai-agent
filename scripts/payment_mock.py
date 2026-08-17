@@ -35,6 +35,19 @@ CONDITIONAL_AMOUNT_USDC = DEVNET_TEST_AMOUNT_USDC / 2  # 정책 3항: 조건부�
 CURRENCY = "USDC"  # pay.sh/x402 기준 정산 통화에 맞춰 SOL 대신 devnet USDC 사용
 _B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
+# --- 자금 통제(Controlled Funds) — 하드 캡 ---
+# 정책 3항("소액대출 한도는 연매출의 5%, 최대 500만원")과 정책 6항(운영 안전장치)에 대응하는
+# 값을 여기서도 독립적으로 다시 강제한다. decision.py가 계산한 승인 금액이 어떤 이유로든
+# (버그, 프롬프트 조작 등) 한도를 넘겨 이 함수까지 들어오더라도, 집행 계층에서 한 번 더
+# 막는 이중 방어선(defense-in-depth)이다 — 핫월렛에서 자금이 무제한 자동 송금되는 것을
+# 막기 위한 최소한의 브레이크 지점.
+PER_TX_HARD_CAP_KRW = 5_000_000  # 건별 한도 (정책 3항과 동일)
+DAILY_HARD_CAP_KRW = 20_000_000  # 일별 누적 한도 (신규 — 운영 리스크 통제, 정책 6항)
+
+
+class FundControlError(RuntimeError):
+    """건별/일별 하드 캡 초과로 집행이 차단됐을 때 던진다."""
+
 
 class DisbursementError(RuntimeError):
     """USDC 송금 단계에서 실패했을 때 던진다.
@@ -153,6 +166,22 @@ def _execute_collection(
     return collect_fn(applicant_id, amount_usdc, memo=memo)
 
 
+def _check_hard_caps(applicant_id: int, requested_loan_krw: int) -> None:
+    """건별/일별 하드 캡을 강제한다. 위반 시 FundControlError를 던져 집행을 차단한다."""
+    if requested_loan_krw > PER_TX_HARD_CAP_KRW:
+        raise FundControlError(
+            f"건별 한도 초과 — 신청자 {applicant_id}: 요청 금액 {requested_loan_krw:,}원이 "
+            f"건별 하드 캡 {PER_TX_HARD_CAP_KRW:,}원을 초과해 집행을 차단합니다."
+        )
+
+    today_total = bigquery_logger.get_today_disbursed_total_krw()
+    if today_total + requested_loan_krw > DAILY_HARD_CAP_KRW:
+        raise FundControlError(
+            f"일별 누적 한도 초과 — 오늘 이미 {today_total:,}원 집행됨. 이번 건({requested_loan_krw:,}원)을 "
+            f"더하면 일별 하드 캡 {DAILY_HARD_CAP_KRW:,}원을 초과해 집행을 차단합니다."
+        )
+
+
 def disburse_loan(
     applicant_id: int,
     decision: str,
@@ -176,6 +205,8 @@ def disburse_loan(
     wallet_newly_issued = False
 
     if decision in ("approve", "conditional"):
+        _check_hard_caps(applicant_id, requested_loan_krw)
+
         if wallet_address is None:
             wallet_name = f"applicant_{applicant_id}"
             wallet_newly_issued = not devnet_transfer.wallet_exists(wallet_name)

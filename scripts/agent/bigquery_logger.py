@@ -327,6 +327,24 @@ def find_recent_execution(applicant_id: int, min_minutes: int = 10) -> dict | No
     return dict(rows[0]) if rows else None
 
 
+def get_today_disbursed_total_krw() -> int:
+    """오늘(UTC 기준) 이미 실행(EXECUTED)된 대출 집행액 합계(KRW)를 조회한다.
+
+    payment_mock.py의 일별 하드 캡 체크에 쓰인다 — 정책 문서에만 있는 숫자가 아니라
+    실제 집행 계층에서 강제되는 자금 통제(운영 안전장치, 정책 6항 참고).
+    """
+    ensure_table()
+    client = get_client()
+    query = f"""
+        SELECT COALESCE(SUM(requested_loan_krw), 0) AS total
+        FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`
+        WHERE status = 'EXECUTED'
+          AND DATE(timestamp) = CURRENT_DATE()
+    """
+    rows = list(client.query(query).result())
+    return int(rows[0]["total"]) if rows else 0
+
+
 def log_decision(record: dict) -> None:
     """payment_mock.PaymentResult(dict 형태)를 BigQuery에 한 행 적재한다."""
     table = ensure_table()
