@@ -42,7 +42,7 @@ Cloud Scheduler (매일 03:00 KST)
 
 ```mermaid
 flowchart TB
-    Browser["대시보드 (브라우저)<br/>심사 요청 · Critic 테스트 · 지갑 발급"]
+    Browser["대시보드 (브라우저)<br/>심사 요청 · Critic/인젝션 테스트 · 지갑 발급 · 상환 · 하드 캡 테스트<br/>라이트/다크 토글"]
 
     subgraph Run["Cloud Run — FastAPI (service/main.py)"]
         API["/underwrite/{id}, /demo/*, /jobs/*"]
@@ -52,6 +52,9 @@ flowchart TB
         Decision["decision.py<br/>자율 도구선택 루프 (mode=AUTO)"]
         Critic["critic.py<br/>독립 재검토(Critic Agent)"]
     end
+
+    HardCap{"하드 캡 체크<br/>건별 500만원 / 일별 2천만원<br/>(payment_mock._check_hard_caps)"}
+    Blocked["집행 차단<br/>(FundControlError — 판정 결과와 무관하게 즉시 중단)"]
 
     subgraph Chain["Solana devnet"]
         Wallet["임베디드 지갑<br/>(없으면 자동 발급, Passkey 방식)"]
@@ -72,7 +75,9 @@ flowchart TB
     API <--> FS
     API --> Decision --> Critic
     Critic --> API
-    API -->|승인/조건부승인| Wallet --> Transfer
+    API -->|승인/조건부승인| HardCap
+    HardCap -->|한도 이내| Wallet --> Transfer
+    HardCap -->|한도 초과| Blocked
     API -->|상환 실행| Repay
     Transfer --> BQ
     Repay -->|상환 이력 기록| BQ
@@ -86,6 +91,8 @@ flowchart TB
 ```
 
 **상환 루프**: `PoC 심사` → `지급(집행에 대한 검증 가능성 확보 — 온체인 메모)` → `상환(온체인, 지급의 역방향)` → `USDC 회수(treasury)` → `상환 이력 메모 기록(BigQuery)` → `재심사 입력으로 피드백(get_repayment_history_tool)`. 실제 원금/이자 상환 스케줄 계산은 PoC 범위 밖이며, devnet 왕복 증빙용 고정 소액으로 흐름만 시연한다.
+
+**자금 통제**: 심사 판정(Decision/Critic)과 별개로, 온체인 집행 직전에 하드 캡을 독립적으로 강제한다 — 판정 로직이 어떤 이유로든(버그, 프롬프트 인젝션 등) 한도를 넘는 금액을 산정해도 이 계층에서 다시 한번 차단된다.
 
 ---
 
