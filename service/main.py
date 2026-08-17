@@ -31,6 +31,7 @@ from business_text import SAMPLE_BUSINESS_DESCRIPTIONS, SAMPLE_BUSINESS_INDUSTRY
 from bigquery_logger import (  # noqa: E402
     get_client as get_bq_client,
     delete_decision,
+    delete_repayment,
     find_recent_execution,
     PROJECT_ID,
     DATASET_ID,
@@ -266,6 +267,23 @@ def delete_decision_endpoint(
     return RedirectResponse(url="/", status_code=303)
 
 
+@app.post("/repayments/delete")
+def delete_repayment_endpoint(
+    applicant_id: int = Form(...),
+    timestamp: str = Form(...),
+    key: str = Form(...),
+):
+    if not DEMO_KEY or key != DEMO_KEY:
+        raise HTTPException(status_code=403, detail="삭제 권한이 없습니다.")
+
+    result = delete_repayment(applicant_id, timestamp)
+    if not result["ok"]:
+        from urllib.parse import quote
+
+        return RedirectResponse(url=f"/?delete_error={quote(result['error'])}", status_code=303)
+    return RedirectResponse(url="/", status_code=303)
+
+
 _ORDER_COL_BY_TABLE = {
     TABLE_ID: "timestamp",
     RECEIPTS_TABLE_ID: "receipt_issued_at",
@@ -345,7 +363,7 @@ def _tx_link(tx_signature, explorer_url) -> str:
     return f'<a class="txlink" href="{url}" target="_blank" rel="noopener">{short}</a>'
 
 
-def _delete_form_html(applicant_id, ts) -> str:
+def _delete_form_html(applicant_id, ts, action: str = "/decisions/delete") -> str:
     if not DEMO_KEY or not ts:
         return '<span class="muted">-</span>'
     ts_iso = ts.isoformat()
@@ -358,7 +376,7 @@ def _delete_form_html(applicant_id, ts) -> str:
         "this.key.value = k; "
         "return true;"
     )
-    return f"""<form method="post" action="/decisions/delete" onsubmit="{onsubmit}" style="display:inline">
+    return f"""<form method="post" action="{action}" onsubmit="{onsubmit}" style="display:inline">
   <input type="hidden" name="applicant_id" value="{applicant_id}">
   <input type="hidden" name="timestamp" value="{ts_iso}">
   <input type="hidden" name="key" value="">
@@ -428,7 +446,7 @@ _REPAY_STATUS_KR = {"EXECUTED": "실행 완료", "SKIPPED": "건너뜀"}
 
 def _repayments_table_html(records: list[dict]) -> str:
     if not records:
-        return '<tr><td colspan="5" class="empty">아직 상환 기록이 없습니다.</td></tr>'
+        return '<tr><td colspan="6" class="empty">아직 상환 기록이 없습니다.</td></tr>'
     rows = []
     for r in records:
         amount = r.get("amount_usdc")
@@ -445,6 +463,7 @@ def _repayments_table_html(records: list[dict]) -> str:
             f'<td class="muted">{status}</td>'
             f"<td>{_tx_link(r.get('tx_signature'), r.get('explorer_url'))}</td>"
             f'<td class="muted">{ts_str}</td>'
+            f"<td>{_delete_form_html(r.get('applicant_id'), ts, action='/repayments/delete')}</td>"
             "</tr>"
         )
     return "".join(rows)
@@ -560,7 +579,7 @@ def _render_live_region(
       </div>
       <div style="overflow-x:auto">
         <table>
-          <thead><tr><th>신청자 ID</th><th>상환액</th><th>상태</th><th>tx</th><th>시각</th></tr></thead>
+          <thead><tr><th>신청자 ID</th><th>상환액</th><th>상태</th><th>tx</th><th>시각</th><th></th></tr></thead>
           <tbody>{_repayments_table_html(repayments)}</tbody>
         </table>
       </div>

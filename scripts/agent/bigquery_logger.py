@@ -273,15 +273,15 @@ def find_due_conditionals(min_days: int = 90) -> list[dict]:
     return [dict(row) for row in client.query(query, job_config=job_config).result()]
 
 
-def delete_decision(applicant_id: int, timestamp_iso: str) -> dict:
-    """대시보드 삭제 버튼용. 특정 심사 기록 한 건을 (applicant_id, timestamp)로 정확히 지정해 삭제한다.
+def _delete_row_by_applicant_and_timestamp(table_id: str, applicant_id: int, timestamp_iso: str) -> dict:
+    """대시보드 삭제 버튼용 공통 구현. 특정 기록 한 건을 (applicant_id, timestamp)로 정확히 지정해 삭제한다.
 
     BigQuery 스트리밍 버퍼 제약으로, 삽입된 지 1~2시간 안 된 행은 삭제가 거절될 수 있다 —
     이 경우 예외를 잡아 안내 메시지를 담은 dict를 반환한다 (호출부에서 배너로 보여줌).
     """
     client = get_client()
     query = f"""
-        DELETE FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`
+        DELETE FROM `{PROJECT_ID}.{DATASET_ID}.{table_id}`
         WHERE applicant_id = @applicant_id AND timestamp = @ts
     """
     job_config = bigquery.QueryJobConfig(
@@ -298,6 +298,14 @@ def delete_decision(applicant_id: int, timestamp_iso: str) -> dict:
         if "streaming buffer" in str(e).lower():
             return {"ok": False, "error": "방금 생성된 기록은 BigQuery 스트리밍 버퍼 때문에 1~2시간 후에나 삭제할 수 있습니다."}
         return {"ok": False, "error": str(e)}
+
+
+def delete_decision(applicant_id: int, timestamp_iso: str) -> dict:
+    return _delete_row_by_applicant_and_timestamp(TABLE_ID, applicant_id, timestamp_iso)
+
+
+def delete_repayment(applicant_id: int, timestamp_iso: str) -> dict:
+    return _delete_row_by_applicant_and_timestamp(REPAYMENTS_TABLE_ID, applicant_id, timestamp_iso)
 
 
 def find_recent_execution(applicant_id: int, min_minutes: int = 10) -> dict | None:
