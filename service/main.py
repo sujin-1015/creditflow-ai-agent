@@ -977,7 +977,7 @@ def status_page(delete_error: str = None):
       </div>
       <form id="injection-test-form" class="demo-form">
         <select id="injection-applicant-select">
-          <option value="{INJECTION_DEMO_APPLICANT_ID}">{INJECTION_DEMO_APPLICANT_ID} — {SAMPLE_BUSINESS_INDUSTRY[INJECTION_DEMO_APPLICANT_ID]} (정책 무시·무조건 승인 지시 삽입)</option>
+          <option value="{INJECTION_DEMO_APPLICANT_ID}">{INJECTION_DEMO_APPLICANT_ID} — {SAMPLE_BUSINESS_INDUSTRY[INJECTION_DEMO_APPLICANT_ID]} (정책 무시 및 무조건 대출 승인 지시 삽입)</option>
         </select>
         <button type="submit" class="run-btn">테스트 실행</button>
       </form>
