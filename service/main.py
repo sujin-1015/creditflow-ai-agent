@@ -736,7 +736,7 @@ def status_page(delete_error: str = None):
   .demo-form {{ display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }}
   .demo-form select {{
     background: var(--surface-2); color: var(--ink); border: 1px solid var(--border);
-    border-radius: 8px; padding: 8px 12px; font-size: 13px; max-width: 320px;
+    border-radius: 8px; padding: 8px 12px; font-size: 13px; width: 460px; max-width: 100%;
     transition: border-color .15s ease, box-shadow .15s ease;
   }}
   .demo-form select:focus {{
