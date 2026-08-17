@@ -356,6 +356,8 @@ _ICON_APPROVAL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 _ICON_CHAIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>'
 _ICON_DISBURSED = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>'
 _ICON_BOLT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>'
+_ICON_SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>'
+_ICON_MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>'
 
 
 def _badge(decision: str) -> str:
@@ -686,6 +688,16 @@ def status_page(delete_error: str = None):
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CreditFlow Agent — 심사 대시보드</title>
+<script>
+  // CSS가 파싱되기 전에 저장된 테마를 먼저 적용해, 어두운 발표장에서 잠깐이라도
+  // 밝은 화면이 번쩍이는 걸(FOUC) 막는다.
+  (function () {{
+    try {{
+      var t = localStorage.getItem('creditflow-theme');
+      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+    }} catch (e) {{ /* localStorage 접근 불가 시 시스템 기본값을 그대로 따른다 */ }}
+  }})();
+</script>
 <style>
   :root {{
     color-scheme: light;
@@ -701,7 +713,7 @@ def status_page(delete_error: str = None):
     --shadow-md: 0 10px 30px -12px rgba(20,23,28,0.18);
   }}
   @media (prefers-color-scheme: dark) {{
-    :root {{
+    :root:not([data-theme="light"]) {{
       color-scheme: dark;
       --page: #0a0b0f; --surface: #16181f; --surface-2: #1b1e26;
       --ink: #f2f3f5; --ink-2: #b7bcc9; --muted: #82869a;
@@ -715,6 +727,21 @@ def status_page(delete_error: str = None):
       --shadow-md: 0 14px 32px -14px rgba(0,0,0,0.6);
     }}
   }}
+  /* 발표 현장이 어두울 때를 위한 수동 다크 모드 — 시스템 설정과 무관하게 우측 상단
+     토글로 명시적으로 선택한 테마가 항상 우선한다. */
+  :root[data-theme="dark"] {{
+    color-scheme: dark;
+    --page: #0a0b0f; --surface: #16181f; --surface-2: #1b1e26;
+    --ink: #f2f3f5; --ink-2: #b7bcc9; --muted: #82869a;
+    --border: rgba(255,255,255,0.09);
+    --accent: #5b9cf0; --accent-2: #9a83ff; --accent-soft: #172440;
+    --good: #34c759; --good-soft: #10241a;
+    --warn: #e0b23a; --warn-soft: #2c2410;
+    --bad: #e5605f; --bad-soft: #2c1616;
+    --violet: #9a83ff; --violet-soft: #1f1a38;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+    --shadow-md: 0 14px 32px -14px rgba(0,0,0,0.6);
+  }}
   * {{ box-sizing: border-box; }}
   body {{
     margin: 0; padding: 40px 24px 72px; color: var(--ink);
@@ -727,7 +754,8 @@ def status_page(delete_error: str = None):
   .wrap {{ max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }}
   #live-region-top, #live-region-bottom {{ display: flex; flex-direction: column; gap: 26px; }}
 
-  .page-header {{ display: flex; align-items: flex-start; gap: 16px; }}
+  .page-header {{ display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }}
+  .header-left {{ display: flex; align-items: flex-start; gap: 16px; min-width: 0; }}
   .logo-mark {{
     flex: none; width: 44px; height: 44px; border-radius: 12px;
     display: flex; align-items: center; justify-content: center; color: #fff;
@@ -736,6 +764,15 @@ def status_page(delete_error: str = None):
   }}
   .logo-mark svg {{ width: 22px; height: 22px; }}
   .header-text {{ min-width: 0; }}
+  .theme-toggle {{
+    flex: none; width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface); border: 1px solid var(--border); color: var(--ink-2);
+    cursor: pointer; box-shadow: var(--shadow-sm);
+    transition: transform .15s ease, box-shadow .15s ease, color .15s ease;
+  }}
+  .theme-toggle:hover {{ color: var(--accent); box-shadow: var(--shadow-md); transform: translateY(-1px); }}
+  .theme-toggle svg {{ width: 18px; height: 18px; }}
 
   .eyebrow {{
     display: inline-flex; align-items: center; gap: 6px;
@@ -868,12 +905,15 @@ def status_page(delete_error: str = None):
 <body>
   <div class="wrap">
     <header class="page-header">
-      <div class="logo-mark">{_ICON_BOLT}</div>
-      <div class="header-text">
-        <div class="eyebrow"><span class="eyebrow-dot"></span>CreditFlow Agent · Live PoC</div>
-        <h1>소상공인 대출 심사 에이전트 대시보드</h1>
-        <div class="subtitle">Gemini 판정 + Solana devnet 자동 집행을 실시간으로 실행하고 결과를 조회합니다</div>
+      <div class="header-left">
+        <div class="logo-mark">{_ICON_BOLT}</div>
+        <div class="header-text">
+          <div class="eyebrow"><span class="eyebrow-dot"></span>CreditFlow Agent · Live PoC</div>
+          <h1>소상공인 대출 심사 에이전트 대시보드</h1>
+          <div class="subtitle">Gemini 판정 + Solana devnet 자동 집행을 실시간으로 실행하고 결과를 조회합니다</div>
+        </div>
       </div>
+      <button type="button" id="theme-toggle" class="theme-toggle" title="라이트/다크 전환" aria-label="라이트/다크 전환">{_ICON_MOON}</button>
     </header>
 
     <div id="live-region-top">{live_top}</div>
@@ -958,6 +998,29 @@ def status_page(delete_error: str = None):
   </div>
 
   <script>
+    const THEME_KEY = 'creditflow-theme';
+    const ICON_SUN = '{_ICON_SUN}';
+    const ICON_MOON = '{_ICON_MOON}';
+
+    function currentTheme() {{
+      const attr = document.documentElement.getAttribute('data-theme');
+      if (attr === 'light' || attr === 'dark') return attr;
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }}
+
+    function applyTheme(theme) {{
+      document.documentElement.setAttribute('data-theme', theme);
+      try {{ localStorage.setItem(THEME_KEY, theme); }} catch (e) {{ /* 저장 실패해도 이번 방문 동안은 정상 동작 */ }}
+      const btn = document.getElementById('theme-toggle');
+      if (btn) btn.innerHTML = theme === 'dark' ? ICON_MOON : ICON_SUN;
+    }}
+
+    document.getElementById('theme-toggle').addEventListener('click', function () {{
+      applyTheme(currentTheme() === 'dark' ? 'light' : 'dark');
+    }});
+
+    applyTheme(currentTheme());
+
     function getDemoKey() {{
       return prompt('데모 키를 입력하세요');
     }}
