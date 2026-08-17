@@ -423,6 +423,9 @@ def _reeval_table_html(records: list[dict]) -> str:
     return "".join(rows)
 
 
+_REPAY_STATUS_KR = {"EXECUTED": "실행 완료", "SKIPPED": "건너뜀"}
+
+
 def _repayments_table_html(records: list[dict]) -> str:
     if not records:
         return '<tr><td colspan="5" class="empty">아직 상환 기록이 없습니다.</td></tr>'
@@ -433,7 +436,8 @@ def _repayments_table_html(records: list[dict]) -> str:
         amount_str = f"{amount:.2f} {currency}" if amount else '<span class="muted">-</span>'
         ts = r.get("timestamp")
         ts_str = ts.strftime("%Y-%m-%d %H:%M UTC") if ts else "-"
-        status = html.escape(r.get("status") or "-")
+        raw_status = r.get("status")
+        status = html.escape(_REPAY_STATUS_KR.get(raw_status, raw_status or "-"))
         rows.append(
             "<tr>"
             f'<td class="mono">{r.get("applicant_id", "-")}</td>'
