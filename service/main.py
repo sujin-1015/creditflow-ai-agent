@@ -37,6 +37,7 @@ from bigquery_logger import (  # noqa: E402
     TABLE_ID,
     RECEIPTS_TABLE_ID,
     REEVAL_TABLE_ID,
+    REPAYMENTS_TABLE_ID,
 )
 
 app = FastAPI(title="CreditFlow Agent")
@@ -269,6 +270,7 @@ _ORDER_COL_BY_TABLE = {
     TABLE_ID: "timestamp",
     RECEIPTS_TABLE_ID: "receipt_issued_at",
     REEVAL_TABLE_ID: "reevaluated_at",
+    REPAYMENTS_TABLE_ID: "timestamp",
 }
 
 
@@ -421,6 +423,29 @@ def _reeval_table_html(records: list[dict]) -> str:
     return "".join(rows)
 
 
+def _repayments_table_html(records: list[dict]) -> str:
+    if not records:
+        return '<tr><td colspan="5" class="empty">아직 상환 기록이 없습니다.</td></tr>'
+    rows = []
+    for r in records:
+        amount = r.get("amount_usdc")
+        currency = r.get("currency") or ""
+        amount_str = f"{amount:.2f} {currency}" if amount else '<span class="muted">-</span>'
+        ts = r.get("timestamp")
+        ts_str = ts.strftime("%Y-%m-%d %H:%M UTC") if ts else "-"
+        status = html.escape(r.get("status") or "-")
+        rows.append(
+            "<tr>"
+            f'<td class="mono">{r.get("applicant_id", "-")}</td>'
+            f'<td class="mono">{amount_str}</td>'
+            f'<td class="muted">{status}</td>'
+            f"<td>{_tx_link(r.get('tx_signature'), r.get('explorer_url'))}</td>"
+            f'<td class="muted">{ts_str}</td>'
+            "</tr>"
+        )
+    return "".join(rows)
+
+
 def _in_progress_html(in_progress: list[dict]) -> str:
     if not in_progress:
         return ""
@@ -444,15 +469,17 @@ def _render_live_region(
     decisions: list[dict],
     summary: dict,
     reevaluations: list[dict],
+    repayments: list[dict],
     in_progress: list[dict],
     fetch_error: str = None,
     delete_error: str = None,
-) -> tuple[str, str]:
-    """폴링으로 계속 갱신되는 대시보드 영역(KPI/최근 심사/재심사)을 렌더링한다.
+) -> tuple[str, str, str]:
+    """폴링으로 계속 갱신되는 대시보드 영역(KPI/최근 심사/상환 이력/재심사)을 렌더링한다.
 
-    (top, bottom) 튜플로 나눠서 반환한다 — 그 사이에 "새 심사 실행" 폼(폴링 대상이 아닌 정적
-    요소)을 끼워 넣기 위함. 폼까지 통째로 폴링 영역에 넣으면 2.5초마다 innerHTML이 갈아치워지며
-    드롭다운 선택값이 초기화되고 이벤트 바인딩도 끊길 수 있어, 폼은 항상 두 영역 밖에 둔다.
+    (top, mid, bottom) 3튜플로 나눠서 반환한다 — 그 사이사이에 "새 심사 실행", "상환 실행" 폼
+    (폴링 대상이 아닌 정적 요소)을 끼워 넣기 위함. 폼까지 통째로 폴링 영역에 넣으면 2.5초마다
+    innerHTML이 갈아치워지며 드롭다운 선택값이 초기화되고 이벤트 바인딩도 끊길 수 있어, 폼은
+    항상 폴링 영역 밖에 둔다.
 
     GET / (최초 로드)와 GET /live-region (2.5초 폴링) 양쪽에서 동일하게 사용한다.
     """
@@ -506,7 +533,7 @@ def _render_live_region(
     </section>
     """
 
-    bottom = f"""
+    mid = f"""
     <section class="card">
       <div class="card-head">
         <div class="card-title">최근 심사 결과</div>
@@ -516,6 +543,21 @@ def _render_live_region(
         <table>
           <thead><tr><th>신청자 ID</th><th>판정</th><th>대출한도(KRW)</th><th>devnet 집행액</th><th>tx</th><th>Critic 검증</th><th>에이전트 도구 호출 순서</th><th>시각</th><th></th></tr></thead>
           <tbody>{_decisions_table_html(decisions)}</tbody>
+        </table>
+      </div>
+    </section>
+    """
+
+    bottom = f"""
+    <section class="card">
+      <div class="card-head">
+        <div class="card-title">상환 이력</div>
+        <div class="card-note">신청자 지갑 → treasury 상환 실행 기록</div>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>신청자 ID</th><th>상환액</th><th>상태</th><th>tx</th><th>시각</th></tr></thead>
+          <tbody>{_repayments_table_html(repayments)}</tbody>
         </table>
       </div>
     </section>
@@ -534,10 +576,10 @@ def _render_live_region(
     </section>
     """
 
-    return top, bottom
+    return top, mid, bottom
 
 
-def _load_dashboard_data(delete_error: str = None) -> tuple[str, str]:
+def _load_dashboard_data(delete_error: str = None) -> tuple[str, str, str]:
     try:
         decisions = _fetch_recent(TABLE_ID)
         summary = _fetch_summary()
@@ -551,11 +593,18 @@ def _load_dashboard_data(delete_error: str = None) -> tuple[str, str]:
         reevaluations = []
 
     try:
+        repayments = _fetch_recent(REPAYMENTS_TABLE_ID)
+    except Exception:  # noqa: BLE001
+        repayments = []
+
+    try:
         in_progress = live_state.list_in_progress()
     except Exception:  # noqa: BLE001
         in_progress = []
 
-    return _render_live_region(decisions, summary, reevaluations, in_progress, fetch_error, delete_error)
+    return _render_live_region(
+        decisions, summary, reevaluations, repayments, in_progress, fetch_error, delete_error
+    )
 
 
 _LIVE_REGION_SPLIT = "<!--LIVE-REGION-SPLIT-->"
@@ -565,15 +614,15 @@ _LIVE_REGION_SPLIT = "<!--LIVE-REGION-SPLIT-->"
 def live_region():
     """대시보드가 2.5초마다 폴링하는 조각 HTML — 다른 접속자가 켜둔 화면에도 "심사 중" 상태가 뜨게 한다.
 
-    top/bottom 두 조각을 구분자로 이어붙여 반환한다 (프론트에서 split해서 각자 다른
-    컨테이너에 꽂는다 — "새 심사 실행" 폼이 그 사이에 고정으로 위치하기 때문)."""
-    top, bottom = _load_dashboard_data()
-    return f"{top}{_LIVE_REGION_SPLIT}{bottom}"
+    top/mid/bottom 세 조각을 구분자로 이어붙여 반환한다 (프론트에서 split해서 각자 다른
+    컨테이너에 꽂는다 — "새 심사 실행", "상환 실행" 폼이 그 사이사이에 고정으로 위치하기 때문)."""
+    top, mid, bottom = _load_dashboard_data()
+    return f"{top}{_LIVE_REGION_SPLIT}{mid}{_LIVE_REGION_SPLIT}{bottom}"
 
 
 @app.get("/", response_class=HTMLResponse)
 def status_page(delete_error: str = None):
-    live_top, live_bottom = _load_dashboard_data(delete_error)
+    live_top, live_mid, live_bottom = _load_dashboard_data(delete_error)
 
     return f"""
 <!doctype html>
@@ -793,6 +842,22 @@ def status_page(delete_error: str = None):
       </div>
     </section>
 
+    <div id="live-region-mid">{live_mid}</div>
+
+    <section class="card">
+      <div class="card-head">
+        <div class="card-title">상환 실행</div>
+        <div class="card-note">지급의 역방향 — 신청자 지갑에서 treasury로 상환 (진행 키 필요)</div>
+      </div>
+      <form id="repay-form" class="demo-form">
+        <select name="applicant_id" id="repay-applicant-select">
+          {_applicant_options_html()}
+        </select>
+        <button type="submit" class="run-btn">실행</button>
+      </form>
+      <div id="repay-result" class="critic-test-result"></div>
+    </section>
+
     <div id="live-region-bottom">{live_bottom}</div>
 
     <section class="card">
@@ -808,20 +873,6 @@ def status_page(delete_error: str = None):
         <button type="submit" class="run-btn">테스트 실행</button>
       </form>
       <div id="critic-test-result" class="critic-test-result"></div>
-    </section>
-
-    <section class="card">
-      <div class="card-head">
-        <div class="card-title">상환 실행</div>
-        <div class="card-note">지급의 역방향 — 신청자 지갑에서 treasury로 상환 (진행 키 필요)</div>
-      </div>
-      <form id="repay-form" class="demo-form">
-        <select name="applicant_id" id="repay-applicant-select">
-          {_applicant_options_html()}
-        </select>
-        <button type="submit" class="run-btn">상환 실행</button>
-      </form>
-      <div id="repay-result" class="critic-test-result"></div>
     </section>
 
     <section class="card">
@@ -850,8 +901,9 @@ def status_page(delete_error: str = None):
         const res = await fetch('/live-region');
         if (res.ok) {{
           const text = await res.text();
-          const [top, bottom] = text.split('{_LIVE_REGION_SPLIT}');
+          const [top, mid, bottom] = text.split('{_LIVE_REGION_SPLIT}');
           document.getElementById('live-region-top').innerHTML = top;
+          document.getElementById('live-region-mid').innerHTML = mid || '';
           document.getElementById('live-region-bottom').innerHTML = bottom || '';
         }}
       }} catch (e) {{ /* 폴링 실패는 조용히 무시하고 다음 주기에 재시도 */ }}
