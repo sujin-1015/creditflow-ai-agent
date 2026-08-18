@@ -1047,17 +1047,25 @@ def status_page(delete_error: str = None):
 
     function buildUnderwriteNarration(data) {{
       if (data.idempotent_replay) {{
-        return '최근 ' + {UNDERWRITE_IDEMPOTENCY_MINUTES} + '분 내 이미 처리된 건입니다 — 이전 결과를 그대로 보여드려요 (' + (data.decision || '-') + ').';
+        return '최근 ' + {UNDERWRITE_IDEMPOTENCY_MINUTES} + '분 내 이미 처리된 건입니다';
       }}
       if (data.decision === 'reject') {{
-        return '거절 — 대출을 집행하지 않았습니다 (지갑 발급도 하지 않습니다).';
+        return '<b>거절</b> — 대출을 집행하지 않았습니다 (지갑 발급도 하지 않습니다).';
       }}
       const decisionLabel = data.decision === 'approve' ? '승인' : '조건부승인';
       const addr = data.wallet_address ? walletAddrShort(data.wallet_address) : '-';
       if (data.wallet_newly_issued) {{
-        return decisionLabel + ' — 지갑이 없어 임베디드 지갑을 자동 발급(Passkey 방식, 가스비 없음)하고 즉시 대출을 집행했습니다: ' + addr;
+        return '<b>' + decisionLabel + '</b> — 지갑이 없어 임베디드 지갑을 자동 발급(Passkey 방식, 가스비 없음)하고 즉시 대출을 집행했습니다: ' + addr;
       }}
-      return decisionLabel + ' — 기존 지갑으로 대출을 즉시 집행했습니다: ' + addr;
+      return '<b>' + decisionLabel + '</b> — 기존 지갑으로 대출을 즉시 집행했습니다: ' + addr;
+    }}
+
+    function narrationColorVar(data) {{
+      if (data.idempotent_replay) return 'var(--bad)';
+      if (data.decision === 'approve') return 'var(--good)';
+      if (data.decision === 'conditional') return 'var(--warn)';
+      if (data.decision === 'reject') return 'var(--bad)';
+      return '';
     }}
 
     document.getElementById('demo-underwrite-form').addEventListener('submit', async function (e) {{
@@ -1066,6 +1074,7 @@ def status_page(delete_error: str = None):
       if (!key) return;
       const applicantId = document.getElementById('demo-applicant-select').value;
       const statusEl = document.getElementById('demo-status');
+      statusEl.style.color = '';
       statusEl.textContent = '심사 중 — 에이전트가 정량/정성 정보를 검토하고 있습니다…';
       const body = new URLSearchParams({{applicant_id: applicantId, key: key}});
       try {{
@@ -1084,7 +1093,8 @@ def status_page(delete_error: str = None):
           return;
         }}
         const data = await res.json();
-        statusEl.textContent = buildUnderwriteNarration(data);
+        statusEl.innerHTML = buildUnderwriteNarration(data);
+        statusEl.style.color = narrationColorVar(data);
         refreshLiveRegion();
       }} catch (err) {{
         statusEl.textContent = '요청 중 오류가 발생했습니다.';
