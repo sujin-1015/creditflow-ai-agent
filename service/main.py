@@ -899,6 +899,20 @@ def status_page(delete_error: str = None):
     background: var(--surface-2); border: 1px solid var(--border); font-size: 13px; line-height: 1.6;
   }}
 
+  /* 판정 근거 문장이 실제 Gemini 응답을 그 자리에서 타이핑해 보여주는 효과 —
+     미리 준비된 카드가 아니라 방금 실행된 결과라는 걸 시각적으로 드러낸다. */
+  .typing-cursor::after {{
+    content: '▌'; display: inline-block; margin-left: 2px;
+    color: var(--accent); animation: blink 0.9s step-start infinite;
+  }}
+  @keyframes blink {{ 50% {{ opacity: 0; }} }}
+  .exec-meta {{
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--muted); margin-top: 12px;
+    font-variant-numeric: tabular-nums;
+  }}
+  .exec-meta .dot {{ width: 5px; height: 5px; border-radius: 50%; background: var(--good); }}
+
   @media (max-width: 720px) {{ .kpi-row {{ grid-template-columns: repeat(2, 1fr); }} }}
 </style>
 </head>
@@ -1107,6 +1121,39 @@ def status_page(delete_error: str = None):
       return div.innerHTML;
     }}
 
+    // 판정 근거 문장을 그 자리에서 타이핑해서 보여준다 — 미리 만들어둔 카드가 아니라
+    // 방금 받은 Gemini 응답이라는 걸 시각적으로 드러내기 위함. textContent만 쓰므로
+    // HTML 이스케이프가 자동으로 되고, 커서 깜빡임은 .typing-cursor 클래스가 담당한다.
+    function typewriterInto(el, text, opts) {{
+      opts = opts || {{}};
+      const chunk = opts.chunk || 3;
+      const delay = opts.delay || 10;
+      el.textContent = '';
+      el.classList.add('typing-cursor');
+      let i = 0;
+      function step() {{
+        i += chunk;
+        el.textContent = text.slice(0, i);
+        if (i < text.length) {{
+          setTimeout(step, delay);
+        }} else {{
+          el.classList.remove('typing-cursor');
+          if (opts.onDone) opts.onDone();
+        }}
+      }}
+      step();
+    }}
+
+    function execMetaHtml(startTs) {{
+      const elapsed = ((Date.now() - startTs) / 1000).toFixed(1);
+      const timeStr = new Date().toLocaleTimeString('ko-KR', {{hour12: false}});
+      return '<div class="exec-meta"><span class="dot"></span>' + timeStr + ' 실행 완료 · Gemini 응답 ' + elapsed + '초</div>';
+    }}
+
+    function loadingIndicatorHtml(text) {{
+      return '<div class="progress-item" style="font-size:13px"><span class="pulse-dot"></span>' + text + '</div>';
+    }}
+
     document.getElementById('critic-test-form').addEventListener('submit', async function (e) {{
       e.preventDefault();
       const key = getDemoKey();
@@ -1114,7 +1161,8 @@ def status_page(delete_error: str = None):
       const scenario = document.getElementById('critic-scenario-select').value;
       const resultEl = document.getElementById('critic-test-result');
       resultEl.style.display = 'block';
-      resultEl.textContent = 'Critic Agent 실행 중…';
+      resultEl.innerHTML = loadingIndicatorHtml('Critic Agent 실행 중 — Gemini 호출 중…');
+      const startTs = Date.now();
       const body = new URLSearchParams({{scenario: scenario, key: key}});
       try {{
         const res = await fetch('/demo/critic-test', {{method: 'POST', body: body}});
@@ -1130,11 +1178,17 @@ def status_page(delete_error: str = None):
         const badgeCls = data.verdict === 'reject' ? 'badge-reject' : 'badge-approve';
         const label = data.verdict === 'reject' ? '반박 (Reject)' : '승인 (Approve)';
         let out = '<span class="badge ' + badgeCls + '"><span class="badge-dot"></span>Critic 판정: ' + label + '</span>';
-        out += '<div style="margin-top:8px; color:var(--ink-2)">' + escapeHtml(data.critique_reasoning) + '</div>';
+        out += '<div id="critic-reasoning-text" style="margin-top:8px; color:var(--ink-2)"></div>';
         if (data.policy_violation) {{
           out += '<div style="margin-top:6px; color:var(--bad); font-weight:600">⚠ 위반 조항: ' + escapeHtml(data.policy_violation) + '</div>';
         }}
+        out += '<div id="critic-exec-meta"></div>';
         resultEl.innerHTML = out;
+        typewriterInto(document.getElementById('critic-reasoning-text'), data.critique_reasoning, {{
+          onDone: function () {{
+            document.getElementById('critic-exec-meta').innerHTML = execMetaHtml(startTs);
+          }}
+        }});
       }} catch (err) {{
         resultEl.textContent = '요청 중 오류가 발생했습니다.';
       }}
@@ -1146,7 +1200,8 @@ def status_page(delete_error: str = None):
       if (!key) return;
       const resultEl = document.getElementById('injection-test-result');
       resultEl.style.display = 'block';
-      resultEl.textContent = '인젝션 테스트 실행 중 — 실제 Gemini 호출이라 잠시 걸릴 수 있어요…';
+      resultEl.innerHTML = loadingIndicatorHtml('인젝션 테스트 실행 중 — 실제 Gemini 호출이라 잠시 걸릴 수 있어요…');
+      const startTs = Date.now();
       const body = new URLSearchParams({{key: key}});
       try {{
         const res = await fetch('/demo/injection-test', {{method: 'POST', body: body}});
@@ -1172,20 +1227,32 @@ def status_page(delete_error: str = None):
         const [decisionCls, decisionLabel] = decisionMap[data.final_decision] || ['badge-neutral', data.final_decision];
         const criticCls = data.critic_verdict === 'reject' ? 'badge-reject' : 'badge-approve';
         const criticLabel = data.critic_verdict === 'reject' ? '반박 (Reject)' : '승인 (1차 판정에 동의)';
+        const heldUp = data.final_decision === 'reject';
         let out = '<div style="margin-bottom:10px; color:var(--ink-2)"><b>삽입된 문구:</b> ' + escapeHtml(data.injected_text) + '</div>';
         out += '<div style="margin-bottom:10px">정량 등급: ' + data.quant_tier + ' (부도확률 ' + (data.default_probability * 100).toFixed(1) + '%)</div>';
         out += '<div><span class="badge ' + decisionCls + '"><span class="badge-dot"></span>1차 판정: ' + decisionLabel + '</span></div>';
-        out += '<div style="margin-top:6px; color:var(--ink-2)">' + escapeHtml(data.decision_reasoning) + '</div>';
+        out += '<div id="injection-decision-text" style="margin-top:6px; color:var(--ink-2)"></div>';
         out += '<div style="margin-top:12px"><span class="badge ' + criticCls + '"><span class="badge-dot"></span>Critic 검토: ' + criticLabel + '</span></div>';
-        out += '<div style="margin-top:6px; color:var(--ink-2)">' + escapeHtml(data.critic_reasoning) + '</div>';
+        out += '<div id="injection-critic-text" style="margin-top:6px; color:var(--ink-2)"></div>';
         if (data.critic_policy_violation) {{
           out += '<div style="margin-top:6px; color:var(--bad); font-weight:600">⚠ 위반 조항: ' + escapeHtml(data.critic_policy_violation) + '</div>';
         }}
-        const heldUp = data.final_decision === 'reject';
-        out += '<div style="margin-top:12px; font-weight:700; color:' + (heldUp ? 'var(--good)' : 'var(--bad)') + '">' +
-          (heldUp ? '✓ 인젝션에 흔들리지 않고 정책대로 판정했습니다.' : '⚠ 판정이 approve/conditional로 바뀌었습니다 — 위 Critic 검토 결과를 확인하세요.') +
-          '</div>';
+        out += '<div id="injection-conclusion" style="margin-top:12px; font-weight:700; display:none"></div>';
+        out += '<div id="injection-exec-meta"></div>';
         resultEl.innerHTML = out;
+        typewriterInto(document.getElementById('injection-decision-text'), data.decision_reasoning, {{
+          onDone: function () {{
+            typewriterInto(document.getElementById('injection-critic-text'), data.critic_reasoning, {{
+              onDone: function () {{
+                const concEl = document.getElementById('injection-conclusion');
+                concEl.style.display = 'block';
+                concEl.style.color = heldUp ? 'var(--good)' : 'var(--bad)';
+                concEl.textContent = heldUp ? '✓ 인젝션에 흔들리지 않고 정책대로 판정했습니다.' : '⚠ 판정이 approve/conditional로 바뀌었습니다 — 위 Critic 검토 결과를 확인하세요.';
+                document.getElementById('injection-exec-meta').innerHTML = execMetaHtml(startTs);
+              }}
+            }});
+          }}
+        }});
       }} catch (err) {{
         resultEl.textContent = '요청 중 오류가 발생했습니다.';
       }}
