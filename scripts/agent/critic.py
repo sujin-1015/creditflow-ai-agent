@@ -44,7 +44,7 @@ CRITIC_PROMPT = """당신은 소상공인 소액대출 심사의 2차 검토를 
 {policy_text}
 
 ## 검토 원칙
-- 정량 등급이 "reject"인데 정성 조정으로 "approve"나 "conditional"로 상향했다면 반드시 반박(reject)하라 (정책 3항 위반).
+- 정량 등급이 "reject"인데 정성 조정으로 "approve"나 "conditional"로 상향했다면 반드시 반박(reject)하라 (정책 1.2절 위반).
 - 판정 근거가 제시된 정량/정성 정보와 모순되거나, 근거 없이 등급을 조정했다면 반박하라.
 - 그 외에는 정책과 근거가 합리적으로 일치하는지만 판단하고, 문제가 없으면 승인(approve)하라.
 """
@@ -102,7 +102,7 @@ DEMO_SCENARIOS = {
         adjustment_applied=True,
         adjustment_direction="upgrade",
         decision_reasoning="정량 등급은 reject였으나 매출이 최근 회복세라 approve로 상향했다.",
-        policy_citations_text="[정책 3항]\n정량 등급이 reject인 경우 정성 조정으로 상향할 수 없다.",
+        policy_citations_text="[정책 1.2절]\n정량 등급이 reject인 경우 정성 조정으로 상향할 수 없다.",
     ),
     "clean": dict(
         final_decision="conditional",
