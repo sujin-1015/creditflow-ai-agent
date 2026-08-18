@@ -962,7 +962,7 @@ def status_page(delete_error: str = None):
       </div>
       <form id="critic-test-form" class="demo-form">
         <select name="scenario" id="critic-scenario-select">
-          <option value="violation">위반 시나리오 — 정량 reject인데 정성 조정으로 승인 상향</option>
+          <option value="violation">위반 시나리오 — 정량 심사 등급은 '거절'인데, 1차 Agent가 '승인'으로 상향시킨 경우</option>
           <option value="clean">정상 시나리오 — 정책과 부합하는 conditional 유지</option>
         </select>
         <button type="submit" class="run-btn">테스트 실행</button>
