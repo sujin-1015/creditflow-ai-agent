@@ -278,8 +278,16 @@ def disburse_remaining(
     applicant_id: int,
     wallet_address: str,
     rationale: str,
+    requested_loan_krw: int,
 ) -> PaymentResult:
-    """재심사에서 조건부->승인으로 상향된 건의 잔여 50%(0.50 USDC)를 집행한다."""
+    """재심사에서 조건부->승인으로 상향된 건의 잔여 50%(0.50 USDC)를 집행한다.
+
+    최초 집행(disburse_loan)과 동일하게 하드 캡을 적용한다 — 이전엔 이 경로만 캡 체크가
+    빠져있어서, 판정 결과와 무관하게 즉시 중단한다는 안전장치가 이 경로엔 적용 안 되는
+    구멍이 있었다.
+    """
+    _check_hard_caps(applicant_id, requested_loan_krw)
+
     now = datetime.now(timezone.utc).isoformat()
     r_hash = _rationale_hash(rationale)
     memo = _build_memo(applicant_id, "approve", r_hash)

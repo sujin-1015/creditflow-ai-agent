@@ -68,6 +68,7 @@ def reevaluate(applicant_id: int, followup_text: str | None = None) -> dict:
             applicant_id=applicant_id,
             wallet_address=wallet_address,
             rationale=payment_rationale,
+            requested_loan_krw=new_result.approved_amount_krw,
         )
         # 해시가 온체인 메모와 대조 가능하도록, 실제로 해시/서명한 문자열로 rationale을 맞춘다.
         reeval_record["rationale"] = payment_rationale
