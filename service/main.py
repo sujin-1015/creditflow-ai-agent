@@ -849,7 +849,7 @@ _DASHBOARD_CSS = """
     overflow-wrap:normal;
   }
   .subtitle{
-    font-size:15px;font-weight:500;line-height:1.55;letter-spacing:-0.005em;
+    font-size:16px;font-weight:500;line-height:1.55;letter-spacing:-0.005em;
     color:var(--ink-3);
     max-width:640px;
     word-break:keep-all;
@@ -935,7 +935,7 @@ _DASHBOARD_CSS = """
     transition:color .2s ease;
   }
   .kpi-value.accent{color:var(--blue);}
-  .kpi-unit{font-size:13px;font-weight:600;color:var(--ink-4);margin-left:3px;}
+  .kpi-unit{font-size:14px;font-weight:600;color:var(--ink-4);margin-left:3px;}
 
   .live-strip{
     display:flex;align-items:center;gap:9px;
@@ -943,7 +943,7 @@ _DASHBOARD_CSS = """
     color:var(--blue);
     border-radius:var(--r-lg);
     padding:11px 13px;
-    font-size:12.5px;font-weight:700;
+    font-size:14px;font-weight:700;
     line-height:1.4;
     word-break:keep-all;
     overflow-wrap:normal;
@@ -959,7 +959,7 @@ _DASHBOARD_CSS = """
   .banner{
     background:var(--error-soft);color:var(--error);
     border-radius:var(--r-md);padding:12px 16px;
-    font-size:13.5px;font-weight:600;
+    font-size:15px;font-weight:600;
     word-break:keep-all;overflow-wrap:break-word;
   }
 
@@ -1007,7 +1007,7 @@ _DASHBOARD_CSS = """
 
   /* ============ Typographic building blocks ============ */
   .card-title{font-size:19px;font-weight:700;letter-spacing:-0.01em;color:var(--ink);word-break:keep-all;overflow-wrap:normal;}
-  .card-note{font-size:13px;font-weight:500;color:var(--ink-4);word-break:keep-all;overflow-wrap:normal;}
+  .card-note{font-size:14.5px;font-weight:500;color:var(--ink-4);word-break:keep-all;overflow-wrap:normal;}
 
   .section-kicker{
     display:block;font-size:11px;font-weight:700;letter-spacing:.09em;
@@ -1030,7 +1030,7 @@ _DASHBOARD_CSS = """
     letter-spacing:-0.02em;
   }
   .section-title{font-size:24px;font-weight:800;letter-spacing:-0.015em;color:var(--ink);word-break:keep-all;overflow-wrap:normal;}
-  .section-desc{margin-top:6px;font-size:13.5px;font-weight:500;color:var(--ink-4);word-break:keep-all;overflow-wrap:normal;}
+  .section-desc{margin-top:6px;font-size:15px;font-weight:500;color:var(--ink-4);word-break:keep-all;overflow-wrap:normal;}
 
   /* ============ Forms ============ */
   .form-row{display:flex;gap:16px;align-items:center;flex-wrap:wrap;}
@@ -1042,7 +1042,7 @@ _DASHBOARD_CSS = """
     border:1px solid var(--border);
     border-radius:var(--r-md);
     padding:12px 40px 12px 14px;
-    font-family:inherit;font-size:14px;font-weight:600;color:var(--ink-2);
+    font-family:inherit;font-size:15.5px;font-weight:600;color:var(--ink-2);
     min-width:280px;
     max-width:100%;
     flex:1 1 280px;
@@ -1054,7 +1054,7 @@ _DASHBOARD_CSS = """
 
   .btn{
     appearance:none;border:none;cursor:pointer;
-    font-family:inherit;font-weight:700;font-size:14px;
+    font-family:inherit;font-weight:700;font-size:15px;
     border-radius:var(--r-md);
     padding:12px 22px;
     display:inline-flex;align-items:center;gap:8px;
@@ -1067,7 +1067,7 @@ _DASHBOARD_CSS = """
   .btn-primary:disabled{opacity:.55;cursor:default;transform:none;}
 
   .status-text{
-    font-size:13px;font-weight:600;color:var(--ink-4);
+    font-size:14.5px;font-weight:600;color:var(--ink-4);
     min-height:20px;
     flex:1 1 260px;
     display:flex;align-items:center;gap:8px;
@@ -1096,7 +1096,7 @@ _DASHBOARD_CSS = """
   .action-panel .section-kicker{color:var(--ink-3);}
   .action-title{font-size:27px;font-weight:800;letter-spacing:-0.015em;color:var(--ink);word-break:keep-all;overflow-wrap:normal;}
   .action-note{
-    font-size:13.5px;font-weight:500;color:var(--ink-3);max-width:80ch;line-height:1.75;
+    font-size:15px;font-weight:500;color:var(--ink-3);max-width:80ch;line-height:1.75;
     word-break:keep-all;overflow-wrap:normal;
   }
   .action-panel select.tf-select{background-color:var(--surface);}
@@ -1116,7 +1116,7 @@ _DASHBOARD_CSS = """
   }
   table.tf-table td{
     padding:14px 14px 14px 0;
-    font-size:13.5px;font-weight:500;color:var(--ink-2);
+    font-size:15px;font-weight:500;color:var(--ink-2);
     border-bottom:1px solid var(--border);
     vertical-align:middle;
     white-space:nowrap;
@@ -1129,12 +1129,12 @@ _DASHBOARD_CSS = """
     padding:32px 0;font-weight:500;
     word-break:keep-all;overflow-wrap:normal;
   }
-  .cell-mono{font-family:var(--font-mono);font-size:12px;color:var(--ink-3);}
+  .cell-mono{font-family:var(--font-mono);font-size:13px;color:var(--ink-3);}
   .cell-money{font-variant-numeric:tabular-nums;font-weight:700;color:var(--ink);}
   .cell-money.muted{color:var(--muted-2);font-weight:500;}
-  .cell-steps{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-4);white-space:normal;line-height:1.7;display:inline-block;min-width:180px;}
+  .cell-steps{font-family:var(--font-mono);font-size:13px;color:var(--ink-4);white-space:normal;line-height:1.7;display:inline-block;min-width:180px;}
   .muted{color:var(--muted-2);}
-  .tx-link{font-family:var(--font-mono);font-size:12px;color:var(--blue);text-decoration:none;}
+  .tx-link{font-family:var(--font-mono);font-size:13px;color:var(--blue);text-decoration:none;}
   .tx-link:hover{text-decoration:underline;}
   .arrow-flow{display:inline-flex;align-items:center;gap:6px;}
   .arrow-flow svg{width:13px;height:13px;color:var(--muted);flex:none;}
@@ -1152,7 +1152,7 @@ _DASHBOARD_CSS = """
   /* ============ Badges ============ */
   .badge{
     display:inline-flex;align-items:center;gap:6px;
-    font-size:12.5px;font-weight:700;letter-spacing:-0.005em;
+    font-size:13.5px;font-weight:700;letter-spacing:-0.005em;
     padding:5px 11px;
     border-radius:var(--r-full);
     white-space:nowrap;
@@ -1161,7 +1161,7 @@ _DASHBOARD_CSS = """
   .badge-warn{background:var(--warning-soft);color:var(--warning);}
   .badge-bad{background:var(--error-soft);color:var(--error);}
   .badge-neutral{background:var(--neutral-soft);color:var(--neutral-ink);}
-  .badge-lg{font-size:14px;padding:8px 16px;}
+  .badge-lg{font-size:15px;padding:8px 16px;}
 
   /* ============ Test mode cards ============ */
   .test-mode-card{
@@ -1198,21 +1198,21 @@ _DASHBOARD_CSS = """
   .test-result[hidden]{display:none;}
   .loading-row{
     display:flex;align-items:center;gap:9px;
-    font-size:13.5px;font-weight:700;color:var(--ink-4);
+    font-size:15px;font-weight:700;color:var(--ink-4);
     word-break:keep-all;overflow-wrap:normal;
   }
   /* 판정 근거 문장이 실제 Gemini 응답을 그 자리에서 타이핑해 보여주는 효과 —
      미리 준비된 카드가 아니라 방금 실행된 결과라는 걸 시각적으로 드러낸다. */
-  .result-line{font-size:13.5px;font-weight:500;color:var(--ink-3);line-height:1.65;word-break:keep-all;overflow-wrap:normal;}
-  .result-line.muted-line{color:var(--muted);font-size:13px;}
+  .result-line{font-size:15px;font-weight:500;color:var(--ink-3);line-height:1.65;word-break:keep-all;overflow-wrap:normal;}
+  .result-line.muted-line{color:var(--muted);font-size:14px;}
   .result-line strong{color:var(--ink);}
-  .violation-line{font-size:13.5px;font-weight:700;color:var(--error);word-break:keep-all;overflow-wrap:normal;}
-  .conclusion-line{font-size:14px;font-weight:700;word-break:keep-all;overflow-wrap:normal;}
+  .violation-line{font-size:15px;font-weight:700;color:var(--error);word-break:keep-all;overflow-wrap:normal;}
+  .conclusion-line{font-size:15.5px;font-weight:700;word-break:keep-all;overflow-wrap:normal;}
   .conclusion-line.ok{color:var(--success);}
   .conclusion-line.bad{color:var(--error);}
   .exec-meta{
     display:flex;align-items:center;gap:7px;
-    font-size:12px;font-weight:600;color:var(--muted);
+    font-size:13px;font-weight:600;color:var(--muted);
     font-family:var(--font-mono);
   }
   .exec-meta .dot{width:6px;height:6px;animation:none;}
@@ -1227,7 +1227,7 @@ _DASHBOARD_CSS = """
 
   footer.note{
     margin-top:40px;
-    font-size:12px;color:var(--muted);
+    font-size:13px;color:var(--muted);
     text-align:center;
     word-break:keep-all;overflow-wrap:normal;
   }
@@ -1261,7 +1261,7 @@ _DASHBOARD_CSS = """
   }
   @media (max-width:720px){
     h1{font-size:24px;}
-    .subtitle{font-size:13px;}
+    .subtitle{font-size:14px;}
     .page-header-inner{flex-direction:row;align-items:flex-start;}
     .tab-panel{gap:44px;}
     .section-head{grid-template-columns:1fr;row-gap:6px;}
@@ -1751,7 +1751,7 @@ def _repayments_section_html(num: str, rows_html: str) -> str:
             <div>
               <span class="section-kicker">REPAYMENTS</span>
               <h2 class="section-title">상환 이력</h2>
-              <p class="section-desc">신청자 지갑 → treasury 상환 실행 기록</p>
+              <p class="section-desc">신청자 지갑 → 재무 지갑 상환 실행 기록</p>
             </div>
           </div>
           <div class="table-scroll">
@@ -1808,6 +1808,7 @@ def status_page(delete_error: str = None):
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
 <script>{_THEME_BOOT_JS}</script>
 <style>{_DASHBOARD_CSS}</style>
 </head>
@@ -1889,7 +1890,7 @@ def status_page(delete_error: str = None):
           <div class="action-head">
             <span class="section-kicker">REPAYMENT</span>
             <h2 class="action-title">상환 실행</h2>
-            <p class="action-note">지급의 역방향 — 신청자 지갑에서 treasury로 상환</p>
+            <p class="action-note">신청자 지갑에서 재무 지갑으로 상환</p>
           </div>
           <form id="repay-form" class="form-row">
             <select class="tf-select" name="applicant_id" id="repay-applicant-select" aria-label="상환할 신청자 선택">{options_html}</select>
