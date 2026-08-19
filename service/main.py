@@ -852,6 +852,7 @@ _DASHBOARD_CSS = """
     font-size:16px;font-weight:500;line-height:1.55;letter-spacing:-0.005em;
     color:var(--ink-3);
     max-width:640px;
+    margin-top:6px;
     word-break:keep-all;
     overflow-wrap:normal;
   }
@@ -935,7 +936,7 @@ _DASHBOARD_CSS = """
     transition:color .2s ease;
   }
   .kpi-value.accent{color:var(--blue);}
-  .kpi-unit{font-size:14px;font-weight:600;color:var(--ink-4);margin-left:3px;}
+  .kpi-unit{font-size:15px;font-weight:600;color:var(--ink-4);margin-left:3px;}
 
   .live-strip{
     display:flex;align-items:center;gap:9px;
@@ -943,7 +944,7 @@ _DASHBOARD_CSS = """
     color:var(--blue);
     border-radius:var(--r-lg);
     padding:11px 13px;
-    font-size:14px;font-weight:700;
+    font-size:15px;font-weight:700;
     line-height:1.4;
     word-break:keep-all;
     overflow-wrap:normal;
@@ -959,7 +960,7 @@ _DASHBOARD_CSS = """
   .banner{
     background:var(--error-soft);color:var(--error);
     border-radius:var(--r-md);padding:12px 16px;
-    font-size:15px;font-weight:600;
+    font-size:16px;font-weight:600;
     word-break:keep-all;overflow-wrap:break-word;
   }
 
@@ -1007,7 +1008,7 @@ _DASHBOARD_CSS = """
 
   /* ============ Typographic building blocks ============ */
   .card-title{font-size:19px;font-weight:700;letter-spacing:-0.01em;color:var(--ink);word-break:keep-all;overflow-wrap:normal;}
-  .card-note{font-size:14.5px;font-weight:500;color:var(--ink-4);word-break:keep-all;overflow-wrap:normal;}
+  .card-note{font-size:15.5px;font-weight:500;color:var(--ink-4);word-break:keep-all;overflow-wrap:normal;}
 
   .section-kicker{
     display:block;font-size:11px;font-weight:700;letter-spacing:.09em;
@@ -1030,7 +1031,7 @@ _DASHBOARD_CSS = """
     letter-spacing:-0.02em;
   }
   .section-title{font-size:24px;font-weight:800;letter-spacing:-0.015em;color:var(--ink);word-break:keep-all;overflow-wrap:normal;}
-  .section-desc{margin-top:6px;font-size:15px;font-weight:500;color:var(--ink-4);word-break:keep-all;overflow-wrap:normal;}
+  .section-desc{margin-top:6px;font-size:16px;font-weight:500;color:var(--ink-4);word-break:keep-all;overflow-wrap:normal;}
 
   /* ============ Forms ============ */
   .form-row{display:flex;gap:16px;align-items:center;flex-wrap:wrap;}
@@ -1042,7 +1043,7 @@ _DASHBOARD_CSS = """
     border:1px solid var(--border);
     border-radius:var(--r-md);
     padding:12px 40px 12px 14px;
-    font-family:inherit;font-size:15.5px;font-weight:600;color:var(--ink-2);
+    font-family:inherit;font-size:16.5px;font-weight:600;color:var(--ink-2);
     min-width:280px;
     max-width:100%;
     flex:1 1 280px;
@@ -1054,7 +1055,7 @@ _DASHBOARD_CSS = """
 
   .btn{
     appearance:none;border:none;cursor:pointer;
-    font-family:inherit;font-weight:700;font-size:15px;
+    font-family:inherit;font-weight:700;font-size:16px;
     border-radius:var(--r-md);
     padding:12px 22px;
     display:inline-flex;align-items:center;gap:8px;
@@ -1067,7 +1068,7 @@ _DASHBOARD_CSS = """
   .btn-primary:disabled{opacity:.55;cursor:default;transform:none;}
 
   .status-text{
-    font-size:14.5px;font-weight:600;color:var(--ink-4);
+    font-size:15.5px;font-weight:600;color:var(--ink-4);
     min-height:20px;
     flex:1 1 260px;
     display:flex;align-items:center;gap:8px;
@@ -1096,7 +1097,7 @@ _DASHBOARD_CSS = """
   .action-panel .section-kicker{color:var(--ink-3);}
   .action-title{font-size:27px;font-weight:800;letter-spacing:-0.015em;color:var(--ink);word-break:keep-all;overflow-wrap:normal;}
   .action-note{
-    font-size:15px;font-weight:500;color:var(--ink-3);max-width:80ch;line-height:1.75;
+    font-size:16px;font-weight:500;color:var(--ink-3);max-width:80ch;line-height:1.75;
     word-break:keep-all;overflow-wrap:normal;
   }
   .action-panel select.tf-select{background-color:var(--surface);}
@@ -1116,7 +1117,7 @@ _DASHBOARD_CSS = """
   }
   table.tf-table td{
     padding:14px 14px 14px 0;
-    font-size:15px;font-weight:500;color:var(--ink-2);
+    font-size:16px;font-weight:500;color:var(--ink-2);
     border-bottom:1px solid var(--border);
     vertical-align:middle;
     white-space:nowrap;
@@ -1129,12 +1130,12 @@ _DASHBOARD_CSS = """
     padding:32px 0;font-weight:500;
     word-break:keep-all;overflow-wrap:normal;
   }
-  .cell-mono{font-family:var(--font-mono);font-size:13px;color:var(--ink-3);}
+  .cell-mono{font-family:var(--font-mono);font-size:14px;color:var(--ink-3);}
   .cell-money{font-variant-numeric:tabular-nums;font-weight:700;color:var(--ink);}
   .cell-money.muted{color:var(--muted-2);font-weight:500;}
-  .cell-steps{font-family:var(--font-mono);font-size:13px;color:var(--ink-4);white-space:normal;line-height:1.7;display:inline-block;min-width:180px;}
+  .cell-steps{font-family:var(--font-mono);font-size:14px;color:var(--ink-4);white-space:normal;line-height:1.7;display:inline-block;min-width:180px;}
   .muted{color:var(--muted-2);}
-  .tx-link{font-family:var(--font-mono);font-size:13px;color:var(--blue);text-decoration:none;}
+  .tx-link{font-family:var(--font-mono);font-size:14px;color:var(--blue);text-decoration:none;}
   .tx-link:hover{text-decoration:underline;}
   .arrow-flow{display:inline-flex;align-items:center;gap:6px;}
   .arrow-flow svg{width:13px;height:13px;color:var(--muted);flex:none;}
@@ -1152,7 +1153,7 @@ _DASHBOARD_CSS = """
   /* ============ Badges ============ */
   .badge{
     display:inline-flex;align-items:center;gap:6px;
-    font-size:13.5px;font-weight:700;letter-spacing:-0.005em;
+    font-size:14.5px;font-weight:700;letter-spacing:-0.005em;
     padding:5px 11px;
     border-radius:var(--r-full);
     white-space:nowrap;
@@ -1161,7 +1162,7 @@ _DASHBOARD_CSS = """
   .badge-warn{background:var(--warning-soft);color:var(--warning);}
   .badge-bad{background:var(--error-soft);color:var(--error);}
   .badge-neutral{background:var(--neutral-soft);color:var(--neutral-ink);}
-  .badge-lg{font-size:15px;padding:8px 16px;}
+  .badge-lg{font-size:16px;padding:8px 16px;}
 
   /* ============ Test mode cards ============ */
   .test-mode-card{
@@ -1198,21 +1199,21 @@ _DASHBOARD_CSS = """
   .test-result[hidden]{display:none;}
   .loading-row{
     display:flex;align-items:center;gap:9px;
-    font-size:15px;font-weight:700;color:var(--ink-4);
+    font-size:16px;font-weight:700;color:var(--ink-4);
     word-break:keep-all;overflow-wrap:normal;
   }
   /* 판정 근거 문장이 실제 Gemini 응답을 그 자리에서 타이핑해 보여주는 효과 —
      미리 준비된 카드가 아니라 방금 실행된 결과라는 걸 시각적으로 드러낸다. */
-  .result-line{font-size:15px;font-weight:500;color:var(--ink-3);line-height:1.65;word-break:keep-all;overflow-wrap:normal;}
-  .result-line.muted-line{color:var(--muted);font-size:14px;}
+  .result-line{font-size:16px;font-weight:500;color:var(--ink-3);line-height:1.65;word-break:keep-all;overflow-wrap:normal;}
+  .result-line.muted-line{color:var(--muted);font-size:15px;}
   .result-line strong{color:var(--ink);}
-  .violation-line{font-size:15px;font-weight:700;color:var(--error);word-break:keep-all;overflow-wrap:normal;}
-  .conclusion-line{font-size:15.5px;font-weight:700;word-break:keep-all;overflow-wrap:normal;}
+  .violation-line{font-size:16px;font-weight:700;color:var(--error);word-break:keep-all;overflow-wrap:normal;}
+  .conclusion-line{font-size:16.5px;font-weight:700;word-break:keep-all;overflow-wrap:normal;}
   .conclusion-line.ok{color:var(--success);}
   .conclusion-line.bad{color:var(--error);}
   .exec-meta{
     display:flex;align-items:center;gap:7px;
-    font-size:13px;font-weight:600;color:var(--muted);
+    font-size:14px;font-weight:600;color:var(--muted);
     font-family:var(--font-mono);
   }
   .exec-meta .dot{width:6px;height:6px;animation:none;}
@@ -1227,7 +1228,7 @@ _DASHBOARD_CSS = """
 
   footer.note{
     margin-top:40px;
-    font-size:13px;color:var(--muted);
+    font-size:14px;color:var(--muted);
     text-align:center;
     word-break:keep-all;overflow-wrap:normal;
   }
@@ -1850,7 +1851,7 @@ def status_page(delete_error: str = None):
             <span class="eyebrow"><span class="dot"></span>CreditFlow Agent · Live PoC</span>
           </div>
           <h1>소상공인 대출 심사 에이전트 대시보드</h1>
-          <p class="subtitle">Gemini 판정 + Solana devnet 자동 집행을 실시간으로 실행하고 결과를 조회합니다</p>
+          <p class="subtitle">AI Agent 판정 및 Solana devnet 자동 집행을 실시간으로 실행하고 결과를 기록합니다</p>
         </div>
         <div class="page-header-side">
           <button class="theme-btn" id="themeToggle" type="button" title="라이트/다크 전환" aria-label="테마 전환">
