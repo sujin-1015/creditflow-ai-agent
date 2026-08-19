@@ -24,7 +24,7 @@ flowchart TB
     PS(["Pub/Sub: payment-events"])
     EA["Eventarc 트리거"]
     WF["Cloud Workflows<br/>영수증 발행"]
-    SCH["Cloud Scheduler<br/>매일 03:00 KST"]
+    SCH["Cloud Scheduler<br/>매일 03:00 KST · 90일 경과 조건부건 체크"]
     SM["Secret Manager<br/>GEMINI_API_KEY"]
     CB["Cloud Build<br/>gcloud run deploy --source=."]
 
@@ -36,6 +36,7 @@ flowchart TB
     HardCap -->|한도 이내| Wallet --> Transfer
     HardCap -->|한도 초과| Blocked
     API -->|상환 실행| Repay
+    API -->|재심사 상향 시 잔여집행 — 하드캡 미적용| Transfer
     Transfer --> BQ
     Repay -->|상환 이력 기록| BQ
     BQ -.->|get_repayment_history_tool: 재심사 시 참고| Decision
