@@ -387,12 +387,19 @@ def _critic_badge(verdict: str, reasoning: str = None) -> str:
 
 def _tool_log_html(summary: str) -> str:
     """에이전트가 자율적으로 고른 도구 호출 순서 — 신청자마다 다르게 나온다는 것 자체가
-    "코드가 아니라 모델이 순서를 정한다"는 증거라 대시보드에 그대로 노출한다."""
+    "코드가 아니라 모델이 순서를 정한다"는 증거라 대시보드에 그대로 노출한다.
+
+    가로로 한 줄에 다 이어붙이면 테이블이 옆으로 길어져 드래그해야 하므로,
+    각 단계를 줄바꿈해서 세로로 쌓아 보여준다 (title 툴팁은 기존처럼 한 줄로 유지)."""
     if not summary:
         return '<span class="muted">-</span>'
     steps = [s.strip() for s in summary.split("→")]
-    escaped = html.escape(" → ".join(steps), quote=True)
-    return f'<span class="cell-steps" title="{escaped}">{escaped}</span>'
+    title = html.escape(" → ".join(steps), quote=True)
+    lines = [html.escape(steps[0], quote=True)] + [
+        f"→ {html.escape(s, quote=True)}" for s in steps[1:]
+    ]
+    body = "<br>".join(lines)
+    return f'<span class="cell-steps" title="{title}">{body}</span>'
 
 
 def _tx_link(tx_signature, explorer_url) -> str:
@@ -1153,7 +1160,7 @@ _DASHBOARD_CSS = """
   .cell-mono{font-family:var(--font-mono);font-size:12px;color:var(--ink-3);}
   .cell-money{font-variant-numeric:tabular-nums;font-weight:700;color:var(--ink);}
   .cell-money.muted{color:var(--muted-2);font-weight:500;}
-  .cell-steps{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-4);}
+  .cell-steps{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-4);white-space:normal;line-height:1.7;display:inline-block;min-width:180px;}
   .muted{color:var(--muted-2);}
   .tx-link{font-family:var(--font-mono);font-size:12px;color:var(--blue);text-decoration:none;}
   .tx-link:hover{text-decoration:underline;}
