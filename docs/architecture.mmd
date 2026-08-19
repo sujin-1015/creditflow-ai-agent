@@ -1,0 +1,47 @@
+flowchart TB
+    Browser["대시보드 (브라우저)<br/>심사 요청 · Critic/인젝션 테스트 · 지갑 발급 · 상환 · 하드 캡 테스트<br/>라이트/다크 토글"]
+
+    subgraph Run["Cloud Run — FastAPI (service/main.py)"]
+        API["/underwrite/{id}, /demo/*, /jobs/*"]
+    end
+
+    subgraph AI["Gemini API (google-genai)"]
+        Decision["decision.py<br/>정책 문서(RAG) 대조 · 자율 도구선택 루프 (mode=AUTO)"]
+        Critic["critic.py<br/>독립 재검토(Critic Agent)"]
+    end
+
+    HardCap{"하드 캡 체크<br/>건별 500만원 / 일별 2천만원<br/>(payment_mock._check_hard_caps)"}
+    Blocked["집행 차단<br/>(FundControlError — 판정 결과와 무관하게 즉시 중단)"]
+
+    subgraph Chain["Solana devnet"]
+        Wallet["임베디드 지갑<br/>(없으면 자동 발급, 시드구문 불필요)"]
+        Transfer["USDC 지급<br/>(treasury → 신청자, 수수료 treasury 부담)"]
+        Repay["USDC 상환<br/>(신청자 → treasury, 지급의 역방향)"]
+    end
+
+    BQ[("BigQuery<br/>loan_decisions / receipts / reevaluations / repayments")]
+    FS[("Firestore<br/>in_progress_decisions (실시간 상태)")]
+    PS(["Pub/Sub: payment-events"])
+    EA["Eventarc 트리거"]
+    WF["Cloud Workflows<br/>영수증 발행"]
+    SCH["Cloud Scheduler<br/>매일 03:00 KST"]
+    SM["Secret Manager<br/>GEMINI_API_KEY"]
+    CB["Cloud Build<br/>gcloud run deploy --source=."]
+
+    Browser -->|POST| API
+    API <--> FS
+    API --> Decision --> Critic
+    Critic --> API
+    API -->|승인/조건부승인| HardCap
+    HardCap -->|한도 이내| Wallet --> Transfer
+    HardCap -->|한도 초과| Blocked
+    API -->|상환 실행| Repay
+    Transfer --> BQ
+    Repay -->|상환 이력 기록| BQ
+    BQ -.->|get_repayment_history_tool: 재심사 시 참고| Decision
+    API --> BQ
+    API -->|이벤트 발행| PS --> EA --> WF --> BQ
+    SCH -->|POST /jobs/reevaluate-due| API
+
+    SM -.->|시크릿 주입| API
+    CB -.->|이미지 빌드·배포| API
