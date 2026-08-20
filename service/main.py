@@ -495,17 +495,25 @@ def _repayments_table_html(records: list[dict]) -> str:
     return "".join(rows)
 
 
-def _in_progress_html(in_progress: list[dict]) -> str:
-    """진행 중인 심사 배지 — 사이드바와 두 개의 "새 심사 실행" 액션 패널, 총 3곳에 같은 조각이
-    들어간다. 폴링이 .js-live-strip 컨테이너 전부에 한 번에 꽂아 넣으므로, 여기서는 컨테이너 없이
-    항목만 만들어 반환한다 (비어 있으면 빈 문자열 -> :empty로 컨테이너째 숨겨진다)."""
+def _in_progress_html(in_progress: list[dict], stacked: bool = False) -> str:
+    """진행 중인 심사 배지 — 사이드바와 두 개의 "새 심사 실행" 액션 패널, 총 3곳에 들어간다.
+    좁은 사이드바에서는 줄바꿈 시 글자가 잘려서, 사이드바만 stacked=True로 두 줄 레이아웃을
+    쓰고 액션 패널 두 곳은 기존 한 줄 레이아웃을 그대로 쓴다. 폴링이 각자의 컨테이너
+    (.js-live-strip / .js-live-strip-side) 전부에 한 번에 꽂아 넣으므로, 여기서는 컨테이너
+    없이 항목만 만들어 반환한다 (비어 있으면 빈 문자열 -> :empty로 컨테이너째 숨겨진다)."""
     if not in_progress:
         return ""
+    if stacked:
+        return "".join(
+            '<div class="live-strip">'
+            '<span class="live-strip-status"><span class="dot"></span>심사 중…</span>'
+            f'<span>신청자 <span class="live-strip-id">{p.get("applicant_id")}</span>번</span>'
+            "</div>"
+            for p in in_progress
+        )
     return "".join(
-        '<div class="live-strip">'
-        '<span class="live-strip-status"><span class="dot"></span>심사 중…</span>'
-        f'<span>신청자 <span class="live-strip-id">{p.get("applicant_id")}</span>번</span>'
-        "</div>"
+        '<div class="live-strip"><span class="dot"></span>신청자 '
+        f'<span class="live-strip-id">{p.get("applicant_id")}</span>번 심사 중…</div>'
         for p in in_progress
     )
 
@@ -564,6 +572,7 @@ def _dashboard_payload(
     return {
         "banners_html": banners,
         "in_progress_html": _in_progress_html(in_progress),
+        "in_progress_html_side": _in_progress_html(in_progress, stacked=True),
         "kpi": {
             "total": f"{total}",
             "approval_rate": approval_rate,
@@ -947,7 +956,7 @@ _DASHBOARD_CSS = """
   .kpi-unit{font-size:15px;font-weight:600;color:var(--ink-4);margin-left:3px;}
 
   .live-strip{
-    display:flex;flex-direction:column;gap:3px;
+    display:flex;align-items:center;gap:9px;
     background:var(--blue-soft);
     color:var(--blue);
     border-radius:var(--r-lg);
@@ -957,6 +966,9 @@ _DASHBOARD_CSS = """
     word-break:keep-all;
     overflow-wrap:normal;
   }
+  /* 사이드바(js-live-strip-side)는 폭이 좁아 한 줄 레이아웃이 잘리므로 두 줄로 쌓는다 —
+     액션 패널 쪽(js-live-strip)의 한 줄 레이아웃은 위 기본 규칙 그대로 둔다. */
+  .js-live-strip-side .live-strip{flex-direction:column;align-items:flex-start;gap:3px;}
   .live-strip-status{display:inline-flex;align-items:center;gap:9px;}
   .live-strip-id{font-family:var(--font-mono);font-weight:700;}
   /* "진행 중" 배지는 사이드바 + 두 액션 패널, 총 3곳에 동시에 들어간다. 비어 있을 때
@@ -1426,6 +1438,7 @@ _DASHBOARD_JS = """
       if (!d) return;
       setAll('.js-banners', d.banners_html || '');
       setAll('.js-live-strip', d.in_progress_html || '');
+      setAll('.js-live-strip-side', d.in_progress_html_side || '');
       if (d.kpi) {
         setAll('.js-kpi-total', d.kpi.total);
         setAll('.js-kpi-approval', d.kpi.approval_rate);
@@ -1887,7 +1900,7 @@ def status_page(delete_error: str = None):
         <span class="kpi-value js-kpi-disbursed">{d["kpi"]["disbursed"]}</span>
       </div>
     </div>
-    <div class="js-live-strip live-strip-stack stagger-in" style="animation-delay:260ms">{d["in_progress_html"]}</div>
+    <div class="js-live-strip-side live-strip-stack stagger-in" style="animation-delay:260ms">{d["in_progress_html_side"]}</div>
   </aside>
 
   <div class="backdrop" id="backdrop"></div>
