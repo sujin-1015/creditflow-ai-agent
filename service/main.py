@@ -418,8 +418,9 @@ def _decisions_table_html(records: list[dict]) -> str:
     for r in records:
         ts = r.get("timestamp")
         ts_str = ts.astimezone(KST).strftime("%Y-%m-%d %H:%M KST") if ts else "-"
+        row_key = html.escape(f"{r.get('applicant_id', '-')}::{ts.isoformat() if ts else ''}", quote=True)
         rows.append(
-            "<tr>"
+            f'<tr data-row-key="{row_key}">'
             f'<td class="cell-mono">{r.get("applicant_id", "-")}</td>'
             f"<td>{_badge(r.get('decision'))}</td>"
             f'<td class="cell-money">{r.get("requested_loan_krw", 0):,}원</td>'
@@ -501,8 +502,10 @@ def _in_progress_html(in_progress: list[dict]) -> str:
     if not in_progress:
         return ""
     return "".join(
-        '<div class="live-strip"><span class="dot"></span>신청자 '
-        f'<span class="live-strip-id">{p.get("applicant_id")}</span>번 심사 중…</div>'
+        '<div class="live-strip">'
+        '<span class="live-strip-status"><span class="dot"></span>심사 중…</span>'
+        f'<span>신청자 <span class="live-strip-id">{p.get("applicant_id")}</span>번</span>'
+        "</div>"
         for p in in_progress
     )
 
@@ -944,7 +947,7 @@ _DASHBOARD_CSS = """
   .kpi-unit{font-size:15px;font-weight:600;color:var(--ink-4);margin-left:3px;}
 
   .live-strip{
-    display:flex;align-items:center;gap:9px;
+    display:flex;flex-direction:column;gap:3px;
     background:var(--blue-soft);
     color:var(--blue);
     border-radius:var(--r-lg);
@@ -954,6 +957,7 @@ _DASHBOARD_CSS = """
     word-break:keep-all;
     overflow-wrap:normal;
   }
+  .live-strip-status{display:inline-flex;align-items:center;gap:9px;}
   .live-strip-id{font-family:var(--font-mono);font-weight:700;}
   /* "진행 중" 배지는 사이드바 + 두 액션 패널, 총 3곳에 동시에 들어간다. 비어 있을 때
      컨테이너가 flex gap을 차지하지 않도록 :empty로 통째로 숨긴다. */
@@ -1130,6 +1134,9 @@ _DASHBOARD_CSS = """
   table.tf-table tbody tr:last-child td{border-bottom:none;}
   table.tf-table tbody tr{transition:background .15s ease;}
   table.tf-table tbody tr:hover{background:var(--surface-alt);}
+  /* 폴링 중 새로 생긴 심사 결과 행 표시 — 새로고침하면(JS 상태가 리셋되므로) 사라진다. */
+  table.tf-table tbody tr.row-new{background:var(--warning-soft);}
+  table.tf-table tbody tr.row-new:hover{background:var(--warning-soft);}
   table.tf-table td.empty{
     white-space:normal;text-align:center;color:var(--muted);
     padding:32px 0;font-weight:500;
@@ -1376,6 +1383,45 @@ _DASHBOARD_JS = """
       document.querySelectorAll(selector).forEach(function (el) { el.innerHTML = value; });
     }
 
+    // ============ 새로 추가된 심사 결과 행 하이라이트 ============
+    // 새로고침하면(스크립트가 처음부터 다시 실행되므로) knownDecisionKeys가 null로
+    // 리셋돼 그 시점의 행들을 기준선으로 다시 잡는다 — 즉 하이라이트는 절대 저장되지
+    // 않고, 이 페이지를 계속 보고 있는 동안 "이후에 새로 생긴 행"에만 남는다.
+    let knownDecisionKeys = null;
+    const newDecisionKeys = new Set();
+
+    function setDecisionsWithHighlight(rowsHtml) {
+      const tbodies = document.querySelectorAll('.js-decisions-tbody');
+      tbodies.forEach(function (el) { el.innerHTML = rowsHtml || ''; });
+
+      const currentKeys = new Set();
+      tbodies.forEach(function (tbody) {
+        tbody.querySelectorAll('tr[data-row-key]').forEach(function (tr) {
+          currentKeys.add(tr.getAttribute('data-row-key'));
+        });
+      });
+
+      if (knownDecisionKeys === null) {
+        // 첫 폴링(=페이지를 막 열었을 때) — 지금 있는 행들은 전부 "원래 있던 것"으로 취급한다.
+        knownDecisionKeys = currentKeys;
+      } else {
+        currentKeys.forEach(function (key) {
+          if (!knownDecisionKeys.has(key)) {
+            newDecisionKeys.add(key);
+            knownDecisionKeys.add(key);
+          }
+        });
+      }
+
+      tbodies.forEach(function (tbody) {
+        tbody.querySelectorAll('tr[data-row-key]').forEach(function (tr) {
+          if (newDecisionKeys.has(tr.getAttribute('data-row-key'))) {
+            tr.classList.add('row-new');
+          }
+        });
+      });
+    }
+
     function applyLiveData(d) {
       if (!d) return;
       setAll('.js-banners', d.banners_html || '');
@@ -1387,7 +1433,7 @@ _DASHBOARD_JS = """
         setAll('.js-kpi-disbursed', d.kpi.disbursed);
       }
       setAll('.js-decisions-note', d.decisions_note || '');
-      setAll('.js-decisions-tbody', d.decisions_rows_html || '');
+      setDecisionsWithHighlight(d.decisions_rows_html);
       setAll('.js-repayments-tbody', d.repayments_rows_html || '');
       setAll('.js-reeval-tbody', d.reeval_rows_html || '');
     }
