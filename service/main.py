@@ -681,7 +681,7 @@ _DASHBOARD_CSS = """
     --font-kr:'Pretendard','Noto Sans KR',-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;
     --font-mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, 'Cascadia Mono', Consolas, monospace;
 
-    --sidebar-w:280px;
+    --sidebar-w:240px;
   }
 
   @media (prefers-color-scheme: dark){
