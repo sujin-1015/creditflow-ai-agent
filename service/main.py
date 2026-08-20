@@ -507,9 +507,14 @@ def _in_progress_html(in_progress: list[dict]) -> str:
     )
 
 
-def _applicant_options_html() -> str:
+def _applicant_options_html(priority_ids: list[int] | None = None) -> str:
+    """신청자 드롭다운 옵션을 만든다. priority_ids를 주면 그 신청자들을 지정한 순서대로
+    맨 위에 올리고, 나머지는 원래 순서 그대로 그 아래에 이어붙인다."""
+    all_ids = list(SAMPLE_BUSINESS_DESCRIPTIONS)
+    priority_ids = [aid for aid in (priority_ids or []) if aid in SAMPLE_BUSINESS_DESCRIPTIONS]
+    rest_ids = [aid for aid in all_ids if aid not in priority_ids]
     options = []
-    for aid in SAMPLE_BUSINESS_DESCRIPTIONS:
+    for aid in [*priority_ids, *rest_ids]:
         label = html.escape(SAMPLE_BUSINESS_INDUSTRY.get(aid, "업종 정보 없음"))
         options.append(f'<option value="{aid}">{aid} — {label}</option>')
     return "".join(options)
@@ -1787,7 +1792,8 @@ def _reeval_section_html(num: str, rows_html: str) -> str:
 def status_page(delete_error: str = None):
     d = _load_dashboard_data(delete_error)
 
-    options_html = _applicant_options_html()
+    options_html = _applicant_options_html([10736, 220538, 102345])
+    repay_options_html = _applicant_options_html([10736, 102345])
     # 같은 표/폼이 두 탭에 동시에 존재하므로, 렌더 결과 문자열을 한 번만 만들어 두 곳에 재사용한다
     # (BigQuery를 두 번 조회하지 않는다).
     underwrite_panel = _underwrite_action_panel_html(options_html, d["in_progress_html"])
@@ -1894,7 +1900,7 @@ def status_page(delete_error: str = None):
             <p class="action-note">신청자 지갑에서 재무 지갑으로 상환</p>
           </div>
           <form id="repay-form" class="form-row">
-            <select class="tf-select" name="applicant_id" id="repay-applicant-select" aria-label="상환할 신청자 선택">{options_html}</select>
+            <select class="tf-select" name="applicant_id" id="repay-applicant-select" aria-label="상환할 신청자 선택">{repay_options_html}</select>
             <button type="submit" class="btn btn-primary">실행</button>
           </form>
           <div class="test-result" id="repay-result" hidden></div>
