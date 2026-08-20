@@ -98,10 +98,10 @@ flowchart TB
 
 ## 기술 스택
 
-- **ML**: XGBoost (실제 서빙에 사용). LightGBM은 비교 모델로 학습만 했고 서빙에는 포함되지 않음.
-- **에이전트 & LLM**: Gemini(`gemini-flash-lite-latest`) — `google-genai` SDK의 automatic function calling(mode=AUTO)으로 직접 구현. 도구 호출 여부·순서는 모델이 스스로 판단하며, 호출 로그(`tool_call_log`)로 그 과정을 그대로 노출한다. 1차 판정 이후 별도 Gemini 호출로 동작하는 Critic Agent(`scripts/agent/critic.py`)가 정책 문서 기준으로 판정을 독립 재검토(반박/승인)한다. 자체 구현 RAG(코사인 유사도 기반).
-- **온체인**: Solana devnet, `solana-py`/`solders`, Circle 공식 devnet USDC(SPL Token), SPL Memo(판정 근거 무결성 증명), `base58`
-- **백엔드**: FastAPI, uvicorn, python-multipart
+- **ML**: XGBoost (실제 서빙에 사용). LightGBM은 비교 모델로 학습만 했고 서빙에는 포함되지 않음. SHAP(`TreeExplainer`)으로 신청자 개별 단위 예측 설명력을 제공하고, scikit-learn `StratifiedKFold`로 5-fold 교차검증해 AUC 재현성을 확인했다(표준편차 0.001, `scripts/kfold_cv.py`).
+- **에이전트 & LLM**: Gemini(`gemini-flash-lite-latest`) — `google-genai` SDK의 automatic function calling(mode=AUTO)으로 직접 구현. 도구 호출 여부·순서는 모델이 스스로 판단하며, 호출 로그(`tool_call_log`)로 그 과정을 그대로 노출한다. 1차 판정 이후 별도 Gemini 호출로 동작하는 Critic Agent(`scripts/agent/critic.py`)가 정책 문서 기준으로 판정을 독립 재검토(반박/승인, 강제 function calling mode=ANY)한다. 사업자 설명 텍스트 요약에는 `response_schema`(Pydantic) 기반 구조화 출력을 쓴다. 자체 구현 RAG(코사인 유사도 기반, 임베딩은 `gemini-embedding-001`).
+- **온체인**: Solana devnet, `solana-py`/`solders`, Circle 공식 devnet USDC(SPL Token), SPL Memo(판정 근거 무결성 증명), `base58`. 지갑이 없는 신청자에게는 임베디드(커스터디) 지갑을 최초 승인 시 자동 발급하고, 상환(신청자 → treasury) 역방향 흐름과 건별/일별 하드캡(`FundControlError`, 판정 결과와 무관하게 즉시 차단)으로 실행을 통제한다.
+- **백엔드**: FastAPI, uvicorn, python-multipart. 별도 프론트엔드 프레임워크 없이 서버 렌더링 대시보드 + 바닐라 JS 폴링(2.5초 간격)으로 실시간 상태를 반영한다.
 - **인프라(GCP)**: Cloud Run, BigQuery, Pub/Sub, Eventarc, Cloud Workflows, Cloud Scheduler, Secret Manager, Cloud Build, Firestore(대시보드 "심사 중" 실시간 상태 공유, `scripts/agent/live_state.py`)
 - **공통**: Python 3.12, pydantic, hashlib(sha256)
 
