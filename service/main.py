@@ -1108,7 +1108,7 @@ _DASHBOARD_CSS = """
   table.tf-table{width:100%;min-width:820px;border-collapse:collapse;}
   table.tf-table th{
     text-align:left;
-    font-size:11.5px;font-weight:700;color:var(--ink-4);
+    font-size:16px;font-weight:700;color:var(--ink-4);
     letter-spacing:.03em;
     background:transparent;
     padding:0 14px 10px 0;
