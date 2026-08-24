@@ -210,6 +210,7 @@ docs/
   data_lineage.md              # 원본 → 전처리 → 모델 → 판정 → 온체인/BigQuery 데이터 흐름 추적
   iam_access.md                # 서비스 계정별 IAM 권한 구조 (최소 권한 원칙)
   llm_model_validation.md      # Decision Agent용 Gemini 모델 비교·검증 (정책 준수율/속도/비용)
+  genai_quality_evaluation.md  # Decision+Critic Agent 품질 평가 (gold label 25건, 정확도/인용/도구호출/Critic 일치율)
 ```
 
 ---
