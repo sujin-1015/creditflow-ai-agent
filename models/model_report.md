@@ -1,5 +1,7 @@
 # 모델 학습 및 판정 임계값 리포트
 
+**버전**: 20260824T175139Z_4507445 (git 4507445) — 이력은 `models/model_registry.json` 참고
+
 ## 1. Baseline 모델 비교 (val set AUC)
 | 모델 | Val AUC |
 |---|---|

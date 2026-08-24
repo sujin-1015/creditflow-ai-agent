@@ -15,6 +15,8 @@
 """
 
 import json
+import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import joblib
@@ -24,10 +26,14 @@ from lightgbm import LGBMClassifier
 from sklearn.metrics import confusion_matrix, roc_auc_score
 from xgboost import XGBClassifier
 
+import drift_check
+import model_registry
+
 SEED = 42
 BASE_DIR = Path(__file__).resolve().parent.parent
 PROCESSED_DIR = BASE_DIR / "processed"
 MODELS_DIR = BASE_DIR / "models"
+CANDIDATE_DIR = MODELS_DIR / "_candidate"  # 게이트 통과 전 임시 저장 위치 (실서빙 경로 아님)
 
 FEATURE_COLUMNS = [
     "annual_revenue_krw",
@@ -166,6 +172,11 @@ def tier_summary(tiers: np.ndarray, y: np.ndarray) -> pd.DataFrame:
 
 
 def main():
+    if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+        # Windows 콘솔 기본 코드페이지(cp949)에서 em dash 등 일부 문자가 인코딩 실패로
+        # 크래시를 일으키는 것을 방지한다.
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
     MODELS_DIR.mkdir(exist_ok=True)
 
     X_train, y_train, _ = load_split("train")
@@ -186,8 +197,13 @@ def main():
     else:
         primary_name, primary_model, primary_val_probs = "lightgbm", lgbm_model, lgbm_val_probs
 
-    joblib.dump(xgb_model, MODELS_DIR / "xgboost_model.joblib")
-    joblib.dump(lgbm_model, MODELS_DIR / "lightgbm_model.joblib")
+    # 게이트를 통과하기 전까지는 실서빙 경로(models/xgboost_model.joblib)를 건드리지 않는다 —
+    # 임시 후보 위치에만 저장해두고, test AUC를 계산한 뒤 model_registry가 승격 여부를 결정한다.
+    CANDIDATE_DIR.mkdir(exist_ok=True)
+    candidate_xgb_path = CANDIDATE_DIR / "xgboost_model.joblib"
+    candidate_lgbm_path = CANDIDATE_DIR / "lightgbm_model.joblib"
+    joblib.dump(xgb_model, candidate_xgb_path)
+    joblib.dump(lgbm_model, candidate_lgbm_path)
 
     # --- 2. 임계값 설계 (val set 기준) ---
     threshold_result = find_thresholds(primary_val_probs, y_val.to_numpy())
@@ -231,6 +247,46 @@ def main():
         },
         "feature_importance": feature_importance.to_dict(),
     }
+    # --- 4.5 드리프트 체크: 실서빙 경로를 덮어쓰기 전에, 새 후보와 "지금 배포된" 모델의
+    # test set 예측 확률 분포가 얼마나 다른지 비교한다 (AUC는 비슷해도 분포가 밀리면
+    # threshold_config.json이 더 이상 의도한 부도율 제약을 만족하지 못할 수 있다).
+    drift_result = None
+    if model_registry.LIVE_MODEL_PATH.exists():
+        prev_production_model = joblib.load(model_registry.LIVE_MODEL_PATH)
+        prev_production_probs = prev_production_model.predict_proba(X_test)[:, 1]
+        drift_result = drift_check.compute_psi(prev_production_probs, primary_test_probs)
+        drift_check._append_history(
+            {"timestamp": datetime.now(timezone.utc).isoformat(), "check_type": "pre_training_gate", **drift_result}
+        )
+        print(f"[드리프트 체크] PSI={drift_result['psi']} ({drift_result['severity']})")
+        if drift_result["severity"] != "no_significant_change":
+            print("  [경고] 새 모델의 예측 확률 분포가 기존 프로덕션과 유의미하게 다릅니다 — "
+                  "threshold_config.json 재산정을 검토하세요 (AUC 게이트는 이 문제를 잡지 못함).")
+    metrics["drift_vs_previous_production"] = drift_result
+
+    # --- 4.6 성능 게이트: 새 후보의 test AUC가 현재 프로덕션보다 낮으면 배포하지 않는다 ---
+    gate_result = model_registry.evaluate_gate(test_auc)
+    version_entry = model_registry.save_version(
+        metrics=metrics,
+        threshold_result=threshold_result,
+        xgb_model_path=candidate_xgb_path,
+        lgbm_model_path=candidate_lgbm_path,
+        promote=gate_result["promote"],
+        gate_result=gate_result,
+    )
+
+    if not gate_result["promote"]:
+        print("\n" + "=" * 70)
+        print("[성능 게이트] 배포 차단 — 실서빙 모델을 갱신하지 않았습니다.")
+        print(f"  {gate_result['reason']}")
+        print(f"  후보는 models/versions/{version_entry['version_id']}/ 에 보관되었습니다 (참고/재현용).")
+        print("=" * 70)
+        print(f"\n버전 {version_entry['version_id']} 기록 완료 (배포되지 않음). "
+              f"models/model_registry.json 참고.")
+        return
+
+    print(f"\n[성능 게이트] 배포 승인 — {gate_result['reason']}")
+
     with open(MODELS_DIR / "metrics_report.json", "w", encoding="utf-8") as f:
         json.dump(metrics, f, ensure_ascii=False, indent=2)
 
@@ -238,6 +294,8 @@ def main():
         json.dump(threshold_result, f, ensure_ascii=False, indent=2)
 
     report_md = f"""# 모델 학습 및 판정 임계값 리포트
+
+**버전**: {version_entry['version_id']} (git {version_entry['git_commit'] or 'N/A'}) — 이력은 `models/model_registry.json` 참고
 
 ## 1. Baseline 모델 비교 (val set AUC)
 | 모델 | Val AUC |
@@ -287,7 +345,8 @@ def main():
     with open(MODELS_DIR / "model_report.md", "w", encoding="utf-8") as f:
         f.write(report_md)
 
-    print("=== 학습 완료 ===")
+    print("=== 학습 완료 (배포됨) ===")
+    print(f"버전: {version_entry['version_id']}")
     print(f"Val AUC - XGBoost: {xgb_val_auc:.4f} / LightGBM: {lgbm_val_auc:.4f}")
     print(f"Primary model: {primary_name}")
     print(f"Test AUC: {test_auc:.4f}")

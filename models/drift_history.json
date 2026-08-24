@@ -1,0 +1,13 @@
+{
+  "checks": [
+    {
+      "timestamp": "2026-08-24T17:51:39.216760+00:00",
+      "check_type": "pre_training_gate",
+      "psi": 0.0,
+      "severity": "no_significant_change",
+      "n_bins": 10,
+      "baseline_n": 37800,
+      "candidate_n": 37800
+    }
+  ]
+}

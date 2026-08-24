@@ -12,6 +12,11 @@ Test Data.csv
 Sample Prediction Dataset.csv
 processed/
 
+# 모델 버전 스냅샷/후보 바이너리 — 이력은 model_registry.json(추적됨)에 남기고,
+# 실제 .joblib 스냅샷은 로컬에만 쌓아둔다 (버전마다 커밋하면 저장소가 계속 불어남)
+models/versions/
+models/_candidate/
+
 # Claude Code 로컬 설정 (개인 환경용, 공개 repo에 불필요)
 .claude/
 

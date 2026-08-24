@@ -82,5 +82,12 @@
     "income_log": 0.04720716178417206,
     "revenue_volatility_synth": 0.012479382567107677,
     "debt_to_income_synth": 0.01137296948581934
+  },
+  "drift_vs_previous_production": {
+    "psi": 0.0,
+    "severity": "no_significant_change",
+    "n_bins": 10,
+    "baseline_n": 37800,
+    "candidate_n": 37800
   }
 }

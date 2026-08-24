@@ -211,6 +211,7 @@ docs/
   iam_access.md                # 서비스 계정별 IAM 권한 구조 (최소 권한 원칙)
   llm_model_validation.md      # Decision Agent용 Gemini 모델 비교·검증 (정책 준수율/속도/비용)
   genai_quality_evaluation.md  # Decision+Critic Agent 품질 평가 (gold label 25건, 정확도/인용/도구호출/Critic 일치율)
+  mlops.md                     # 모델 버전관리/성능 게이트/드리프트 체크 (scripts/model_registry.py, drift_check.py)
 ```
 
 ---
@@ -248,6 +249,10 @@ python scripts/preprocess.py
 python scripts/train_model.py
 python scripts/visualize_results.py   # 선택, models/figures/ 에 차트 생성
 ```
+
+`train_model.py`는 새 모델의 test AUC가 현재 프로덕션보다 낮으면 자동으로 배포를 막는다
+(성능 게이트) — 버전 이력은 `models/model_registry.json`, 예측 확률 분포 변화(드리프트)는
+`models/drift_history.json`에 기록된다. 상세는 [docs/mlops.md](docs/mlops.md) 참고.
 
 ### 5. devnet 지갑 준비
 

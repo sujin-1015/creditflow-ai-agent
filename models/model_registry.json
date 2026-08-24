@@ -1,0 +1,25 @@
+{
+  "versions": [
+    {
+      "version_id": "20260824T175139Z_4507445",
+      "timestamp": "2026-08-24T17:51:39.354152+00:00",
+      "git_commit": "4507445",
+      "primary_model": "xgboost",
+      "val_auc": {
+        "xgboost": 0.7846224851226811,
+        "lightgbm": 0.7794055098943381
+      },
+      "test_auc": 0.7882875525065278,
+      "thresholds": {
+        "t_approve": 0.5877197742462158,
+        "t_reject": 0.6263755917549133
+      },
+      "promoted": true,
+      "gate_result": {
+        "promote": true,
+        "reason": "새 test_auc(0.7883)가 현재 프로덕션(0.7883) 이상",
+        "baseline_test_auc": 0.7882875525065278
+      }
+    }
+  ]
+}
