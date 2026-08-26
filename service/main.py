@@ -1101,6 +1101,7 @@ _DASHBOARD_CSS = """
     word-break:keep-all;overflow-wrap:normal;
   }
   .status-text.ok{color:var(--success);}
+  .narration-sentence{color:var(--blue);margin-left:4px;}
 
   code.inline{
     font-family:var(--font-mono);
@@ -1549,25 +1550,19 @@ _DASHBOARD_JS = """
 
     function buildUnderwriteNarration(data) {
       if (data.idempotent_replay) {
-        return '최근 ' + CF_CONFIG.idempotencyMinutes + '분 내 이미 처리된 건입니다';
+        return '<span style="color:var(--error)">최근 ' + CF_CONFIG.idempotencyMinutes + '분 내 이미 처리된 건입니다</span>';
       }
       if (data.decision === 'reject') {
-        return '<b>거절</b> — 대출을 집행하지 않았습니다 (지갑 발급도 하지 않습니다).';
+        return '<b style="color:var(--error)">거절</b>' +
+               '<span class="narration-sentence" style="color:var(--error)">대출을 집행하지 않았습니다 (지갑 발급도 하지 않습니다).</span>';
       }
       const decisionLabel = data.decision === 'approve' ? '승인' : '조건부승인';
-      const addr = data.wallet_address ? walletAddrShort(data.wallet_address) : '-';
-      if (data.wallet_newly_issued) {
-        return '<b>' + decisionLabel + '</b> — 지갑이 없어 임베디드 지갑을 자동 발급(Passkey 방식, 가스비 없음)하고 즉시 대출을 집행했습니다: ' + addr;
-      }
-      return '<b>' + decisionLabel + '</b> — 기존 지갑으로 대출을 즉시 집행했습니다: ' + addr;
-    }
-
-    function narrationColorVar(data) {
-      if (data.idempotent_replay) return 'var(--error)';
-      if (data.decision === 'approve') return 'var(--success)';
-      if (data.decision === 'conditional') return 'var(--warning)';
-      if (data.decision === 'reject') return 'var(--error)';
-      return '';
+      const decisionColor = data.decision === 'approve' ? 'var(--success)' : 'var(--warning)';
+      const sentence = data.wallet_newly_issued
+        ? '지갑이 없어 임베디드 지갑을 자동 발급하고 즉시 대출을 집행했습니다.'
+        : '기존 지갑으로 대출을 즉시 집행했습니다.';
+      return '<b style="color:' + decisionColor + '">' + decisionLabel + '</b>' +
+             '<span class="narration-sentence">' + sentence + '</span>';
     }
 
     // ============ 새 심사 실행 (전체 탭 + 심사 탭, 두 인스턴스 모두 동작) ============
@@ -1593,8 +1588,8 @@ _DASHBOARD_JS = """
             return;
           }
           const data = await res.json();
+          statusEl.style.color = '';
           statusEl.innerHTML = buildUnderwriteNarration(data);
-          statusEl.style.color = narrationColorVar(data);
           refreshLiveRegion();
         } catch (err) {
           statusEl.textContent = '요청 중 오류가 발생했습니다.';
