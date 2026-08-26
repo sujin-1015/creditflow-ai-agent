@@ -1003,7 +1003,7 @@ _DASHBOARD_CSS = """
   .main-inner{max-width:1800px;margin:0 auto;padding:36px 40px 96px;}
 
   .tabs{
-    display:flex;gap:26px;
+    display:flex;gap:32px;
     border-bottom:1px solid var(--border);
     margin-bottom:var(--sp-40);
     overflow-x:auto;
@@ -1011,9 +1011,9 @@ _DASHBOARD_CSS = """
   }
   .tab-btn{
     appearance:none;background:none;border:none;cursor:pointer;
-    font-family:inherit;font-weight:700;font-size:14.5px;
+    font-family:inherit;font-weight:800;font-size:24px;
     color:var(--ink-4);
-    padding:13px 2px;
+    padding:14px 2px;
     position:relative;
     white-space:nowrap;
     transition:color .15s ease;
