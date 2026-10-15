@@ -116,11 +116,12 @@ flowchart TB
     Browser["대시보드 (브라우저)<br/>심사 요청 · Critic/인젝션 테스트 · 지갑 발급 · 상환 · 하드 캡 테스트<br/>라이트/다크 토글"]
 
     subgraph Run["Cloud Run — FastAPI (service/main.py)"]
-        API["/underwrite/{id}, /demo/*, /jobs/*"]
+        API["/underwrite/{id}, /demo/*, /jobs/*<br/>쓰기 엔드포인트: X-Demo-Key 헤더 검증"]
     end
+    RunSA["실행 SA: creditflow-agent-run@... (최소권한)<br/>BigQuery WRITER · Firestore user · Pub/Sub publisher · Secret accessor"]
 
     subgraph AI["Gemini API (google-genai)"]
-        Decision["decision.py<br/>자율 도구선택 루프 (mode=AUTO)"]
+        Decision["decision.py<br/>정책 문서(RAG) 대조 · 자율 도구선택 루프 (mode=AUTO)"]
         Critic["critic.py<br/>독립 재검토(Critic Agent)"]
     end
 
@@ -128,7 +129,7 @@ flowchart TB
     Blocked["집행 차단<br/>(FundControlError — 판정 결과와 무관하게 즉시 중단)"]
 
     subgraph Chain["Solana devnet"]
-        Wallet["임베디드 지갑<br/>(없으면 자동 발급, Passkey 방식)"]
+        Wallet["임베디드 지갑<br/>(없으면 자동 발급, 시드구문 불필요)"]
         Transfer["USDC 지급<br/>(treasury → 신청자, 수수료 treasury 부담)"]
         Repay["USDC 상환<br/>(신청자 → treasury, 지급의 역방향)"]
     end
@@ -138,9 +139,10 @@ flowchart TB
     PS(["Pub/Sub: payment-events"])
     EA["Eventarc 트리거"]
     WF["Cloud Workflows<br/>영수증 발행"]
-    SCH["Cloud Scheduler<br/>매일 03:00 KST"]
+    SCH["Cloud Scheduler<br/>매일 03:00 KST · 90일 경과 조건부건 체크"]
     SM["Secret Manager<br/>GEMINI_API_KEY"]
     CB["Cloud Build<br/>gcloud run deploy --source=."]
+    EventSA["기본 컴퓨트 SA (Editor 권한 회수)<br/>eventarc.eventReceiver · workflows.invoker · BigQuery WRITER로 축소"]
 
     Browser -->|POST| API
     API <--> FS
@@ -150,6 +152,7 @@ flowchart TB
     HardCap -->|한도 이내| Wallet --> Transfer
     HardCap -->|한도 초과| Blocked
     API -->|상환 실행| Repay
+    API -->|재심사 상향 시 잔여집행 — 하드캡 미적용| Transfer
     Transfer --> BQ
     Repay -->|상환 이력 기록| BQ
     BQ -.->|get_repayment_history_tool: 재심사 시 참고| Decision
@@ -159,6 +162,31 @@ flowchart TB
 
     SM -.->|시크릿 주입| API
     CB -.->|이미지 빌드·배포| API
+    RunSA -.->|IAM| API
+    EventSA -.->|IAM| EA
+    EventSA -.->|IAM| WF
+
+    subgraph MLOps["모델 학습·검증 파이프라인 (로컬 실행, CI/CD 미연동)"]
+        Train["train_model.py"]
+        Drift["drift_check.py<br/>PSI 드리프트 계산 (candidate vs. production)"]
+        Gate{"성능 게이트<br/>candidate AUC ≥ production AUC?"}
+        Registry["model_registry.py<br/>models/versions/ 스냅샷 · model_registry.json 이력"]
+        ServingModel["서빙 모델 교체<br/>xgboost/lightgbm .joblib · threshold_config.json"]
+        Keep["미통과 시 기존 모델 유지"]
+        Train --> Drift --> Gate
+        Gate -->|통과| Registry --> ServingModel
+        Gate -->|미통과| Keep
+    end
+    ServingModel -.->|모델 로드| API
+
+    subgraph QA["오프라인 품질평가 스크립트 (수동 실행)"]
+        EvalAgent["eval_decision_agent.py<br/>골드라벨 25건 채점 (Decision+Critic, 인젝션 케이스 포함)"]
+        LLMCompare["llm_model_comparison.py<br/>Gemini 모델 3종 비교"]
+        DataQuality["data_quality_check.py<br/>BigQuery 4테이블 정합성 감사"]
+    end
+    EvalAgent -.-> AI
+    LLMCompare -.-> AI
+    DataQuality -.->|읽기전용| BQ
 ```
 
 **상환 루프**: `PoC 심사` → `지급(집행에 대한 검증 가능성 확보 — 온체인 메모)` → `상환(온체인, 지급의 역방향)` → `USDC 회수(treasury)` → `상환 이력 메모 기록(BigQuery)` → `재심사 입력으로 피드백(get_repayment_history_tool)`. 실제 원금/이자 상환 스케줄 계산은 PoC 범위 밖이며, devnet 왕복 증빙용 고정 소액으로 흐름만 시연한다.
