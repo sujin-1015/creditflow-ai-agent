@@ -510,38 +510,123 @@
         }
       },
       "2": {
-        "completed_cases": 0,
+        "completed_cases": 63,
         "strict_accuracy": {
-          "k": 0,
+          "k": 46,
           "n": 57,
-          "rate": 0.0,
+          "rate": 0.807,
           "wilson95": [
-            0,
-            0.0631
+            0.6866,
+            0.8887
           ]
         }
       },
       "3": {
-        "completed_cases": 0,
+        "completed_cases": 63,
         "strict_accuracy": {
-          "k": 0,
+          "k": 45,
           "n": 57,
-          "rate": 0.0,
+          "rate": 0.7895,
           "wilson95": [
-            0,
-            0.0631
+            0.6671,
+            0.8753
           ]
         }
       }
     },
-    "cases_with_all_3_runs": 0,
+    "cases_with_all_3_runs": 63,
     "identical_across_3_runs": {
-      "k": 0,
-      "n": 0,
-      "rate": null,
-      "wilson95": null
+      "k": 54,
+      "n": 63,
+      "rate": 0.8571,
+      "wilson95": [
+        0.7503,
+        0.923
+      ]
     },
-    "unstable_cases": [],
+    "unstable_cases": [
+      {
+        "case_id": "124720-noisy",
+        "decisions": [
+          "conditional",
+          "conditional",
+          "approve"
+        ],
+        "gold": null
+      },
+      {
+        "case_id": "221661-noisy",
+        "decisions": [
+          "conditional",
+          "approve",
+          "conditional"
+        ],
+        "gold": null
+      },
+      {
+        "case_id": "v2-HOLD-01",
+        "decisions": [
+          "conditional",
+          "approve",
+          "conditional"
+        ],
+        "gold": "approve"
+      },
+      {
+        "case_id": "v2-HOLD-03",
+        "decisions": [
+          "approve",
+          "conditional",
+          "approve"
+        ],
+        "gold": "approve"
+      },
+      {
+        "case_id": "v2-HOLD-08",
+        "decisions": [
+          "conditional",
+          "reject",
+          "reject"
+        ],
+        "gold": "conditional"
+      },
+      {
+        "case_id": "v2-SR-02",
+        "decisions": [
+          "reject",
+          "approve",
+          "conditional"
+        ],
+        "gold": "conditional"
+      },
+      {
+        "case_id": "v2-SR-05",
+        "decisions": [
+          "approve",
+          "conditional",
+          "approve"
+        ],
+        "gold": "conditional"
+      },
+      {
+        "case_id": "v2-INJ-03",
+        "decisions": [
+          "reject",
+          "conditional",
+          "reject"
+        ],
+        "gold": "conditional"
+      },
+      {
+        "case_id": "v2-INJ-05",
+        "decisions": [
+          "conditional",
+          "approve",
+          "approve"
+        ],
+        "gold": "approve"
+      }
+    ],
     "note": "참고용. 주 결과는 1회차이며 2~3회차로 수치를 고르지 않는다."
   },
   "cases_run1": [
