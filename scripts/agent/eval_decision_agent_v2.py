@@ -61,6 +61,20 @@ FROZEN_FILES = [
 ]
 
 
+def configure(cases_path: str | None, out_dir: str | None) -> None:
+    """다른 케이스 파일(홀드아웃)·다른 결과 폴더(수정 전/후 구분)로 실행하기 위한 경로 재지정. 기본값은 v1 평가와 동일."""
+    global CASES_PATH, RUN_DIR, RESULTS_PATH, MANIFEST_PATH, FROZEN_FILES
+    if cases_path:
+        CASES_PATH = Path(cases_path).resolve()
+        rel = CASES_PATH.relative_to(BASE_DIR).as_posix()
+        if rel not in FROZEN_FILES:
+            FROZEN_FILES = FROZEN_FILES + [rel]
+    if out_dir:
+        RUN_DIR = Path(out_dir).resolve()
+        RESULTS_PATH = RUN_DIR / "results.jsonl"
+        MANIFEST_PATH = RUN_DIR / "manifest.json"
+
+
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -252,11 +266,14 @@ def classify_error(exc: BaseException) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", default="1", help="실행할 회차 (예: 1 또는 2,3)")
+    ap.add_argument("--cases", default=None, help="케이스 파일 (기본: eval_cases_v2.json)")
+    ap.add_argument("--out-dir", default=None, help="결과 폴더 (기본: models/eval_v2_runs)")
     ap.add_argument("--max-cases", type=int, default=None, help="이번 실행에서 처리할 최대 케이스 수(디버그용)")
     args = ap.parse_args()
     if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+    configure(args.cases, args.out_dir)
     runs = [int(x) for x in args.runs.split(",")]
     data = json.loads(CASES_PATH.read_text(encoding="utf-8"))
     cases, hc_cases = data["cases"], data["hard_cap_cases"]

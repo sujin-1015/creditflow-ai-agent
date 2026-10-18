@@ -76,6 +76,19 @@ def unnecessary_calls(log, is_reeval):
 
 
 def main() -> int:
+    global CASES_PATH, RESULTS_PATH, OUT_PATH
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--cases", default=None)
+    ap.add_argument("--run-dir", default=None, help="results.jsonl/manifest.json이 있는 폴더")
+    ap.add_argument("--out", default=None)
+    a = ap.parse_args()
+    if a.cases:
+        CASES_PATH = Path(a.cases).resolve()
+    if a.run_dir:
+        RESULTS_PATH = Path(a.run_dir).resolve() / "results.jsonl"
+    if a.out:
+        OUT_PATH = Path(a.out).resolve()
     if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     data = json.loads(CASES_PATH.read_text(encoding="utf-8"))
