@@ -78,11 +78,13 @@ def main() -> int:
     ap.add_argument("--skip-model", action="store_true", help="정량 등급/금액을 모델로 재검증하지 않는다")
     ap.add_argument("--skip-legacy", action="store_true", help="eval_decision_agent 레거시 대조를 건너뛴다")
     ap.add_argument("--markdown", action="store_true", help="커버리지 표를 마크다운으로 출력")
+    ap.add_argument("--cases", default=str(CASES_PATH), help="검증할 케이스 파일 (홀드아웃 파일은 meta.kind=holdout)")
     args = ap.parse_args()
     if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-    data = json.loads(CASES_PATH.read_text(encoding="utf-8"))
+    data = json.loads(Path(args.cases).read_text(encoding="utf-8"))
+    holdout = data["meta"].get("kind") == "holdout"
     cases, hc_cases = data["cases"], data["hard_cap_cases"]
     errors: list[str] = []
 
@@ -95,7 +97,7 @@ def main() -> int:
         if n > 1:
             err(f"case_id 중복: {cid}")
     legacy = [c for c in cases if c["source"] == "legacy_v1"]
-    new = [c for c in cases if c["source"] == "v2_new"]
+    new = [c for c in cases if c["source"] in ("v2_new", "holdout_v1")]
     legacy_aids = {c["applicant_id"] for c in legacy}
     new_aids = Counter(c["applicant_id"] for c in new)
     for aid, n in new_aids.items():
@@ -175,7 +177,13 @@ def main() -> int:
                     err(f"{c['case_id']}: 기대 승인금액 불일치 파일={c['expected_approved_amount_krw']} 계산={want}")
 
     # --- 레거시 대조 ---
-    if not args.skip_legacy:
+    if holdout:
+        v2 = json.loads(CASES_PATH.read_text(encoding="utf-8"))
+        v2_aids = {c["applicant_id"] for c in v2["cases"]}
+        for c in new:
+            if c["applicant_id"] in v2_aids:
+                err(f"{c['case_id']}: 홀드아웃 신청자가 v2와 겹침")
+    if not args.skip_legacy and not holdout:
         sys.path.insert(0, str(AGENT_DIR))
         import eval_decision_agent as ev  # noqa: PLC0415  (import만 — 평가를 실행하지 않는다)
 
@@ -196,20 +204,20 @@ def main() -> int:
     if sum(cat_total.values()) != len(cases):
         err("유형별 합계 != 전체 케이스 수")
     legacy_cat = Counter(c["category"] for c in legacy)
-    if dict(legacy_cat) != LEGACY_EXPECTED_COUNTS:
+    if not holdout and dict(legacy_cat) != LEGACY_EXPECTED_COUNTS:
         err(f"레거시 유형 분포가 정정된 분류와 다름: {dict(legacy_cat)} != {LEGACY_EXPECTED_COUNTS}")
-    if len(legacy) != 25:
+    if not holdout and len(legacy) != 25:
         err(f"레거시 케이스 수 {len(legacy)} != 25")
     if len(new) < 1:
         err("신규 케이스 없음")
     n_inj_new = sum(1 for c in new if c["category"] == "injection")
     n_sr = sum(1 for c in new if c["category"] == "stability_recovery")
     n_reev = sum(1 for c in new if c["is_reevaluation"])
-    if n_inj_new < 8:
+    if not holdout and n_inj_new < 8:
         err(f"신규 인젝션 {n_inj_new} < 8")
-    if n_sr < 3:
+    if not holdout and n_sr < 3:
         err(f"안정/회복 혼동 {n_sr} < 3")
-    if n_reev < 3:
+    if not holdout and n_reev < 3:
         err(f"재심사 {n_reev} < 3")
 
     # --- 보고 ---
