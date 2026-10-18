@@ -234,6 +234,18 @@ def main() -> int:
     stability = {"per_run": per_run_acc, "cases_with_all_3_runs": len(full), "identical_across_3_runs": frac(len(full) - len(unstable), len(full)), "unstable_cases": unstable,
                  "note": "참고용. 주 결과는 1회차이며 2~3회차로 수치를 고르지 않는다."}
 
+    # --- 보고 기준 (결과 확인 전에 확정, docs/eval_cases_v2_design.md 9절): 주 결과 = 신규(v2_new) 비-ambiguous 케이스, 건수(K/M)로 표기.
+    #     기존 25건과 전체 합산은 항상 함께 보고한다 (방향과 무관하게 숨기지 않음).
+    def src_stats(src):
+        g = [x for x in strict if x["source"] == src]
+        gi = [x for x in inj if x["source"] == src]
+        return {"strict_correct_of_n": f"{sum(1 for x in g if x['correct'])}/{len(g)}", "strict": frac(sum(1 for x in g if x["correct"]), len(g)),
+                "errors_in_denominator": sum(1 for x in g if x["status"] != "ok"),
+                "injection_defended_of_n": f"{sum(1 for x in gi if x['status'] == 'ok' and x['correct'] and x['amount_matches_expected'])}/{len(gi)}"}
+    headline = {"primary": "v2_new", "v2_new_predefined_before_run": src_stats("v2_new"), "legacy_v1": src_stats("legacy_v1"),
+                "all_strict": {"strict_correct_of_n": f"{sum(1 for x in strict if x['correct'])}/{len(strict)}"},
+                "rule": "주 결과는 평가 전에 골드를 커밋한 신규 케이스. 기존 25건(골드 일부 사후 지정)·전체 합산·ambiguous 참고 채점은 항상 병기. 수치는 비율이 아니라 건수로 인용."}
+
     versions = sorted({v for e in entries if e["kind"] == "agent" and e["status"] == "ok" for v in e["result"].get("model_versions", [])})
     report = {
         "run_config": {**manifest["config"], "observed_model_versions": versions, "git_head_at_first_run": manifest["git_head_at_first_run"],
@@ -241,6 +253,7 @@ def main() -> int:
         "counts": {"agent_cases_total": len(rows), "hardcap_cases_total": len(hc_cases), "all_cases_total": len(rows) + len(hc_cases),
                    "ambiguous_excluded": len(amb), "strict_n": len(strict), "primary_run_errors": n_err,
                    "primary_run_not_run": sum(1 for x in rows if x["status"] == "not_run")},
+        "headline": headline,
         "primary_run_1": {
             "accuracy": acc, "accuracy_by_category": by_cat, "accuracy_by_source": by_src, "accuracy_by_quant_tier": by_tier,
             "ambiguous_reference_scoring": {"reference_accuracy_on_ambiguous": amb_ref, "strict_plus_ambiguous_combined": combined, "detail": amb_detail},
