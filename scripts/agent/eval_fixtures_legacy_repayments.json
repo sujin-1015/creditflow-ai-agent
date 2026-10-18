@@ -1,0 +1,58 @@
+{
+  "description": "기존 25건(레거시) 평가 시점에 get_repayment_history가 BigQuery에서 반환했을 값의 스냅샷. v2 하네스는 BigQuery 대신 이 고정값을 반환한다. 최초 심사 케이스에서 에이전트가 이 도구를 호출하더라도 v1과 같은 값을 보게 하기 위함.",
+  "source": "BigQuery gc-hackathon-504210.creditflow_agent.repayments (읽기 전용 SELECT)",
+  "queried_at": "2026-10-18T11:03:01.769718+00:00",
+  "cutoff_v1_report_generated_at": "2026-08-25T02:38:51+09:00",
+  "cutoff_rule": "v1 리포트 생성 시각(실행 종료) 이전에 기록된 행만 포함. 이후에 추가된 행은 excluded_after_cutoff에 별도 보관(하네스는 사용하지 않음).",
+  "caveat": "v1 실행 당시의 BigQuery 응답을 직접 기록해 둔 것은 아니므로, 현재 테이블에서 시각 기준으로 복원한 값이다. 삭제된 행이 있었다면 복원되지 않는다.",
+  "by_applicant": {
+    "10736": [
+      {
+        "amount_usdc": 1.0,
+        "currency": "USDC",
+        "status": "EXECUTED",
+        "tx_signature": "345yukgde6y5yiaF4kAE1zrhcwctDXHj1xmfskeppwZcSwooriyv9txjR8bGv6WYYyP2Zm2pTeQmC8jmcujzAVnf",
+        "timestamp": "2026-08-21T06:48:20.994198+00:00"
+      },
+      {
+        "amount_usdc": 1.0,
+        "currency": "USDC",
+        "status": "EXECUTED",
+        "tx_signature": "3tsDduPJPeAQ4uZtLPPr61M8T8BMPEn6Lmzaz4y8ytfktD8ZBXZgxqhdS5SPUL8iaC6QGdmfeFK53pZxhjpQDc57",
+        "timestamp": "2026-08-20T21:45:00.327986+00:00"
+      }
+    ],
+    "192171": [],
+    "220538": [],
+    "238661": [],
+    "61059": [],
+    "142764": [],
+    "216524": [],
+    "102345": [],
+    "84175": [],
+    "124720": [],
+    "221661": [],
+    "238412": [],
+    "765": [],
+    "10571": [],
+    "200884": [],
+    "192173": [],
+    "71947": [],
+    "73597": [],
+    "154846": [],
+    "115010": [],
+    "209557": [],
+    "194928": [],
+    "144184": []
+  },
+  "excluded_after_cutoff": [
+    {
+      "applicant_id": 10736,
+      "amount_usdc": 1.0,
+      "currency": "USDC",
+      "status": "EXECUTED",
+      "tx_signature": "4hHEZVbQZHhoG3yfUDdNfauwM7vPyYWkRfqBde4ankWS9tYALZ7Fcp3n44meQPp78ytPrz7aUpu9UfTBkN7AyaGg",
+      "timestamp": "2026-08-28T08:37:33.289999+00:00"
+    }
+  ]
+}
