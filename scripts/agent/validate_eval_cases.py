@@ -53,6 +53,43 @@ REQUIRED_FIELDS = [
 # 사용자가 정정한 레거시 25건 분류 (hold 8 / downgrade 4 / upgrade 3 / reject_lock 3 / injection 3 / ambiguous 4)
 LEGACY_EXPECTED_COUNTS = {"hold": 8, "downgrade": 4, "upgrade": 3, "reject_lock": 3, "injection": 3, "ambiguous": 4}
 
+DOC_PATH = AGENT_DIR.parent.parent / "docs" / "genai_quality_evaluation.md"
+DOC_BEGIN, DOC_END = "<!-- eval-composition:begin -->", "<!-- eval-composition:end -->"
+CAT_ORDER = [("hold", "조정 없음(등급 유지)"), ("downgrade", "하향(승인→조건부)"), ("upgrade", "상향(조건부→승인)"),
+             ("reject_lock", "정량 거절 유지"), ("stability_recovery", "안정-회복 혼동"), ("reevaluation", "재심사"),
+             ("first_review_lookalike", "최초 심사(재심사처럼 보임)"), ("injection", "프롬프트 인젝션"), ("ambiguous", "ambiguous")]
+
+
+def composition_markdown(data: dict) -> str:
+    """eval_cases_v2.json에서 유형별 구성 표를 생성한다 (문서의 표는 이 출력과 정확히 같아야 한다)."""
+    cases, hc = data["cases"], data["hard_cap_cases"]
+    rows = ["| 유형 | 기존 | 신규 | 합계 |", "|---|---|---|---|"]
+    tl = tn = 0
+    for cat, label in CAT_ORDER:
+        a = sum(1 for c in cases if c["source"] == "legacy_v1" and c["category"] == cat)
+        b = sum(1 for c in cases if c["source"] == "v2_new" and c["category"] == cat)
+        tl, tn = tl + a, tn + b
+        rows.append(f"| {label} | {a} | {b} | {a + b} |")
+    rows.append(f"| **에이전트 평가 소계** | {tl} | {tn} | {tl + tn} |")
+    rows.append(f"| 한도 우회(하드캡, 결정론·LLM 미사용) | 0 | {len(hc)} | {len(hc)} |")
+    rows.append(f"| **전체** | {tl} | {tn + len(hc)} | {tl + tn + len(hc)} |")
+    n_amb = sum(1 for c in cases if c["ambiguous"])
+    rows.append("")
+    rows.append(f"ambiguous {n_amb}건 제외 시 엄격 정확도 n={len(cases) - n_amb}.")
+    return "\n".join(rows)
+
+
+def check_doc(data: dict) -> list[str]:
+    """문서의 유형별 구성 표가 케이스 파일에서 계산한 값과 같은지 검사한다 (합계 불일치 재발 방지)."""
+    if not DOC_PATH.exists():
+        return [f"문서 없음: {DOC_PATH}"]
+    text = DOC_PATH.read_text(encoding="utf-8").replace("\r\n", "\n")
+    if DOC_BEGIN not in text or DOC_END not in text:
+        return ["문서에 eval-composition 마커가 없음"]
+    block = text.split(DOC_BEGIN, 1)[1].split(DOC_END, 1)[0].strip()
+    want = composition_markdown(data).strip()
+    return [] if block == want else ["문서의 유형별 구성 표가 eval_cases_v2.json에서 계산한 값과 다름 — 문서의 eval-composition 마커 사이 표를 composition_markdown() 출력으로 고칠 것"]
+
 
 def derive_gold(tier: str, adjustment: str):
     if tier == "reject":
@@ -78,6 +115,7 @@ def main() -> int:
     ap.add_argument("--skip-model", action="store_true", help="정량 등급/금액을 모델로 재검증하지 않는다")
     ap.add_argument("--skip-legacy", action="store_true", help="eval_decision_agent 레거시 대조를 건너뛴다")
     ap.add_argument("--markdown", action="store_true", help="커버리지 표를 마크다운으로 출력")
+    ap.add_argument("--check-doc", action="store_true", help="docs/genai_quality_evaluation.md의 구성 표가 케이스 파일과 일치하는지 검사")
     ap.add_argument("--cases", default=str(CASES_PATH), help="검증할 케이스 파일 (홀드아웃 파일은 meta.kind=holdout)")
     args = ap.parse_args()
     if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
@@ -155,6 +193,9 @@ def main() -> int:
             want, reason = False, None
         if (want, reason) != (c["expected_blocked"], c["expected_block_reason"]):
             err(f"{cid}: 하드캡 기대값 불일치 (도출 {want}/{reason})")
+
+    if args.check_doc:
+        errors.extend(check_doc(data))
 
     # --- 모델 재검증 ---
     if not args.skip_model:

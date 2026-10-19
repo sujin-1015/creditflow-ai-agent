@@ -180,7 +180,7 @@ flowchart TB
     ServingModel -.->|모델 로드| API
 
     subgraph QA["오프라인 품질평가 스크립트 (수동 실행)"]
-        EvalAgent["eval_decision_agent.py<br/>골드라벨 25건 채점 (Decision+Critic, 인젝션 케이스 포함)"]
+        EvalAgent["eval_decision_agent_v2.py<br/>사전 정의 골드 63건 + 하드캡 5건 채점 (Decision+Critic, 인젝션·재심사·한도 우회 포함)"]
         LLMCompare["llm_model_comparison.py<br/>Gemini 모델 3종 비교"]
         DataQuality["data_quality_check.py<br/>BigQuery 4테이블 정합성 감사"]
     end
@@ -238,7 +238,9 @@ docs/
   data_lineage.md              # 원본 → 전처리 → 모델 → 판정 → 온체인/BigQuery 데이터 흐름 추적
   iam_access.md                # 서비스 계정별 IAM 권한 구조 (최소 권한 원칙)
   llm_model_validation.md      # Decision Agent용 Gemini 모델 비교·검증 (정책 준수율/속도/비용)
-  genai_quality_evaluation.md  # Decision+Critic Agent 품질 평가 (gold label 25건, 정확도/인용/도구호출/Critic 일치율)
+  genai_quality_evaluation.md  # Decision+Critic Agent 품질 평가 (사전 정의 골드 케이스 68건, 정확도/인용/도구호출/Critic 일치율/인젝션 방어/한도 우회, 한계 포함)
+  eval_cases_v2_design.md      # 평가셋 v2 설계·ambiguous 기준·조항별 커버리지·골드 근거
+  eval_improvement_log.md      # 평가에서 발견한 오류 유형과 프롬프트 개선 기록
   mlops.md                     # 모델 버전관리/성능 게이트/드리프트 체크 (scripts/model_registry.py, drift_check.py)
 ```
 

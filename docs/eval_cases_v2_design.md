@@ -1,6 +1,6 @@
 # Decision Agent 평가셋 v2 — 설계 및 사전 정의 문서
 
-> **상태: 평가 실행 전 / 사용자 검토 대기.** 이 문서와 `scripts/agent/eval_cases_v2.json`의 골드·분류는 평가 실행 전에 확정·커밋되어 '사전 정의'의 증거가 된다. 에이전트·평가 스크립트는 실행하지 않았다.
+> **상태: 사전 정의 문서 (평가 실행 전에 작성·커밋, 커밋 `7c48507`).** 이 문서와 `scripts/agent/eval_cases_v2.json`의 골드·분류는 평가 실행 전에 확정되어 '사전 정의'의 증거가 된다. 평가 결과와 해석은 [genai_quality_evaluation.md](genai_quality_evaluation.md) 참고. 이 문서의 9절은 결과 확인 전에 추가한 보고 기준(커밋 `eaa67ba`)이다.
 
 ## 0. 합성 데이터 고지
 

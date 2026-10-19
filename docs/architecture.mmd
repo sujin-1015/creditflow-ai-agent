@@ -66,7 +66,7 @@ flowchart TB
     ServingModel -.->|모델 로드| API
 
     subgraph QA["오프라인 품질평가 스크립트 (수동 실행)"]
-        EvalAgent["eval_decision_agent.py<br/>골드라벨 25건 채점 (Decision+Critic, 인젝션 케이스 포함)"]
+        EvalAgent["eval_decision_agent_v2.py<br/>사전 정의 골드 63건 + 하드캡 5건 채점 (Decision+Critic, 인젝션·재심사·한도 우회 포함)"]
         LLMCompare["llm_model_comparison.py<br/>Gemini 모델 3종 비교"]
         DataQuality["data_quality_check.py<br/>BigQuery 4테이블 정합성 감사"]
     end
