@@ -1,0 +1,28 @@
+{
+  "created_at": "2026-10-19T03:26:40.475812+00:00",
+  "frozen_file_sha256": {
+    "scripts/agent/decision.py": "94fef6f3b510ecc3e65a213b114222c04067b4d4f02faf7709b8b606acdb46b8",
+    "scripts/agent/critic.py": "5bf997a2ebc5b5ef8724d3174d469dad3d612d9d4997e1b7f6be11feb0b06ea6",
+    "scripts/agent/rag.py": "52749c190085ad8462c4c61053512fd8deab6d3bc55ec02849d1521d134513a4",
+    "scripts/agent/business_text.py": "a1d3882b26010b0afbf641468df79327b2b0576152cbcce46c32e14ba0377404",
+    "scripts/agent/gemini_client.py": "e4f70d4e35ac407223837b48b3a30531629f4bbbaff19ba7bdb3d7c2739af776",
+    "scripts/agent/data_tools.py": "cb80fea4c0d3aa50826d2e4da0da97485b91042234d66120f9e8f792dc60355b",
+    "scripts/agent/policy_docs/loan_policy.md": "07894a591a52ae6e74bfd6ea3f7cca98f7170b5f269037fb96b27c63d45258b4",
+    "scripts/agent/eval_cases_v2.json": "c7afd99379fb154f24edc8395660ec91705eaf03d3f60a50a6c68731262a95c5",
+    "scripts/agent/eval_fixtures_legacy_repayments.json": "65b667af0c97a413e5431ce68791367eb163c22048c1804f32a5742e038950ec",
+    "models/xgboost_model.joblib": "73553a5820f38f6ff107e5ce506d27af33d4d52f4c753c29d6b09443a17b043a",
+    "models/threshold_config.json": "019c2b4460aa77eca5f47100a2376cc5af3202020a8a039ec89374f213159761"
+  },
+  "git_head_at_first_run": "87e869ef82bb563258886ed15d1318073ca6084b",
+  "config": {
+    "decision_model_alias": "gemini-flash-lite-latest",
+    "embedding_model": "gemini-embedding-001",
+    "temperature": "미지정 (API 기본값; decision.py/critic.py가 GenerateContentConfig에 temperature를 주지 않음)",
+    "seed": "미지정",
+    "top_k_policy_retrieval": 3,
+    "inter_case_delay_sec": 20,
+    "planned_runs": 3,
+    "primary_run": 1,
+    "note": "1회차를 주 결과로 확정하고 2~3회차는 판정 안정성 지표로만 보고한다."
+  }
+}
