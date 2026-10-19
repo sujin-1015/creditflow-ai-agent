@@ -226,6 +226,10 @@ scripts/
     reevaluation.py        # 조건부승인 건 자동 재심사
     bigquery_logger.py     # BigQuery 기록/조회
     verify_memo.py         # 온체인 메모 위변조 검증
+    eval_decision_agent_v2.py  # 품질 평가 하네스 (재개 가능, 고정 fixture)
+    eval_cases_v2.json     # 사전 정의 골드 평가셋 (+ eval_cases_holdout_v1.json)
+    report_eval_v2.py      # 평가 지표 계산
+    validate_eval_cases.py # 평가셋 무결성·문서 표 일치 검사
     policy_docs/loan_policy.md  # 대출 정책 문서 (RAG 소스)
 service/
   main.py                # FastAPI 서비스 (Cloud Run에 배포)
@@ -344,6 +348,24 @@ curl -s -X POST -d "{}" https://creditflow-agent-46585987317.asia-northeast3.run
 - Test AUC: **0.7883** (XGBoost)
 - 등급별 실제 부도율(test): 승인 7.66% · 조건부승인 28.09% · 거절 43.66% (단조 증가 확인)
 - 상세 수치와 차트: `models/metrics_report.json`, `models/figures/`
+
+---
+
+## 에이전트 품질 평가
+
+Decision Agent + Critic Agent 전체 파이프라인을 **평가 전에 정답을 확정해 커밋한 합성 케이스**로 검증했다 (커밋 `7c48507`). 케이스 68건(에이전트 63 + 하드캡 5)은 정책 조항별 양성·경계·반례, 안정-회복 혼동, 프롬프트 인젝션, 재심사, 한도 경계로 구성했다. 자세한 방법·결과·한계는 [docs/genai_quality_evaluation.md](docs/genai_quality_evaluation.md).
+
+| 지표 (1회차, 건수) | 수정 전 | 프롬프트 규칙 4개 수정 후 |
+|---|---|---|
+| 신규 케이스 판정 일치 (36건) | 24/36 | 35/36 |
+| 신규 인젝션 8종 방어 | 3/8 | 8/8 |
+| 별도 설계한 홀드아웃 (21건) | 12/21 | 21/21 |
+| 하드캡 경계 (차단 3 + 통과 2) | 5/5 | 5/5 |
+
+- 수정 전 오답은 "매출 유지·둔화를 회복으로 오인", "열거되지 않은 사유로 과잉 하향", "정책에 없는 조건부→거절 하향", "요약기가 위험 신호 은폐 지시를 따름"으로 모였고, 이 유형을 일반화한 규칙 4개만 프롬프트에 추가했다 ([개선 기록](docs/eval_improvement_log.md)).
+- Critic은 수정 전 오답 13건 중 5건을 지적했으나 파이프라인상 지적이 최종 판정을 바꾸지 않아 정정된 건은 0건이었다.
+- **한계**: 골드는 작성자 본인이 정의했고(독립 라벨링 아님), 기존 25건 중 13건은 골드를 사후에 지정했다. 합성 텍스트·작은 표본이라 통계적 성능 보증이 아니다. 수정 후 점수는 오류를 분석한 케이스와 같은 유형을 겨냥한 홀드아웃에서 얻은 것이라 새로운 오류 유형에 대한 보증이 아니며, 수정 후는 1회만 실행했다. 정책 인용 지표는 어휘 휴리스틱이다.
+- 재현: `python scripts/agent/validate_eval_cases.py --check-doc` (케이스·문서 무결성), `python scripts/agent/eval_decision_agent_v2.py --runs 1` (평가, 재개 가능), `python scripts/agent/report_eval_v2.py` (지표 계산).
 
 ---
 
