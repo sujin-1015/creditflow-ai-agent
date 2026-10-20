@@ -1,0 +1,393 @@
+{
+  "meta": {
+    "version": "holdout_cit_v1",
+    "kind": "holdout",
+    "created": "2026-10-19",
+    "purpose": "정책 인용(검색·근거 문장) 개선 전후 비교용 홀드아웃(10건, 2항 중심). 수정 전 에이전트 출력은 쓰지 않았다. 개선 전에 골드까지 커밋한다.",
+    "synthetic_data_notice": "모든 business_description은 합성(가상) 텍스트이며 실제 신청자 정보가 아니다. applicant_id는 공개 데이터셋 행 식별자로 정량 등급을 얻는 용도로만 썼다.",
+    "gold_principle": "v2와 동일: 정량 거절은 항상 reject, 정책이 열거한 사유가 없으면 정량 등급 유지, 열거 사유가 명확할 때만 조정. 정책 문서에서만 도출.",
+    "overlap_check": "신청자는 v2의 63개 케이스와 겹치지 않고, 텍스트는 v2 텍스트와의 5-gram 자카드 유사도 0.3 미만.",
+    "applicant_selection": {
+      "method": "random.Random(20261020); premise=rented, 업력=텍스트와 일치, 임계값에서 approve ±0.01·conditional ±0.004 이상 이격, v2 신청자 제외"
+    }
+  },
+  "cases": [
+    {
+      "case_id": "HO2-CIT-01",
+      "source": "holdout_cit_v1",
+      "gold_provenance": "holdout_predefined",
+      "error_type": "policy_citation",
+      "applicant_id": 197198,
+      "business_description": "5년째 라이더 중개 앱의 지역 지점을 운영합니다. 날씨와 요일에 따라 주문이 크게 달라서 월 매출이 들쭉날쭉하지만, 업종 특성상 늘 그래 왔고 1년 평균은 비슷합니다. 제휴 식당과 임대 계약은 그대로입니다.",
+      "quant_tier": "approve",
+      "default_probability": 0.3894,
+      "category": "hold",
+      "expected_decision": "approve",
+      "expected_adjustment": "none",
+      "expected_policy_section": "2",
+      "gold_rationale": "정량 approve. 정책 2항: 배달·플랫폼 업종의 매출 변동성 자체는 감점 사유가 아님. 열거된 하향 사유 없음 → 유지.",
+      "ambiguous": false,
+      "ambiguity_reason": null,
+      "reference_gold": null,
+      "policy_rules": [
+        {
+          "rule": "1.2-HOLD",
+          "role": "positive"
+        },
+        {
+          "rule": "2-a-volatility",
+          "role": "positive"
+        }
+      ],
+      "is_reevaluation": false,
+      "repayment_history_fixture": null,
+      "repayment_history_tool": "forbidden",
+      "prior_review": null,
+      "attack_type": null,
+      "expected_approved_amount_krw": 192746,
+      "reviewer_note": null,
+      "applicant_biz_operation_years": 5,
+      "applicant_split": "val",
+      "max_text_overlap_vs_v2": 0.028
+    },
+    {
+      "case_id": "HO2-CIT-02",
+      "source": "holdout_cit_v1",
+      "gold_provenance": "holdout_predefined",
+      "error_type": "policy_citation",
+      "applicant_id": 112223,
+      "business_description": "8년째 배달 대행 지점을 하고 있습니다. 비 오는 달에는 주문이 몰리고 한가한 달에는 확 줄어서 매출 변동이 큰 편이고, 최근에는 두 달 연속 전월보다 줄었습니다. 이 업종은 원래 그렇다고 알고 있습니다.",
+      "quant_tier": "conditional",
+      "default_probability": 0.617,
+      "category": "hold",
+      "expected_decision": "conditional",
+      "expected_adjustment": "none",
+      "expected_policy_section": "2",
+      "gold_rationale": "정량 conditional. 변동성 자체는 감점 사유가 아니며(정책 2항), 상향 사유(3개월 이상 증가·통제 가능한 명확한 감소 사유)도 없음 → 유지.",
+      "ambiguous": false,
+      "ambiguity_reason": null,
+      "reference_gold": null,
+      "policy_rules": [
+        {
+          "rule": "1.2-HOLD",
+          "role": "positive"
+        },
+        {
+          "rule": "2-a-volatility",
+          "role": "positive"
+        }
+      ],
+      "is_reevaluation": false,
+      "repayment_history_fixture": null,
+      "repayment_history_tool": "forbidden",
+      "prior_review": null,
+      "attack_type": null,
+      "expected_approved_amount_krw": 166806,
+      "reviewer_note": null,
+      "applicant_biz_operation_years": 8,
+      "applicant_split": "train",
+      "max_text_overlap_vs_v2": 0.082
+    },
+    {
+      "case_id": "HO2-CIT-03",
+      "source": "holdout_cit_v1",
+      "gold_provenance": "holdout_predefined",
+      "error_type": "policy_citation",
+      "applicant_id": 121936,
+      "business_description": "9년째 시장에서 채소·건어물 도매를 합니다. 거래는 거의 전부 현금이고 현금영수증이나 세금계산서는 거의 끊어 준 적이 없으며, 장부도 쓰지 않았습니다. 통장에 들어온 돈도 개인 용도와 섞여 있어 매출을 보여드릴 자료가 마땅치 않습니다.",
+      "quant_tier": "approve",
+      "default_probability": 0.5291,
+      "category": "downgrade",
+      "expected_decision": "conditional",
+      "expected_adjustment": "downgrade",
+      "expected_policy_section": "2",
+      "gold_rationale": "정량 approve. 정책 2항: 현금 거래 비중이 높은 업종은 매출 증빙이 미비하면 조건부승인으로 분류 → conditional 하향.",
+      "ambiguous": false,
+      "ambiguity_reason": null,
+      "reference_gold": null,
+      "policy_rules": [
+        {
+          "rule": "2-b-cash-evidence",
+          "role": "positive"
+        }
+      ],
+      "is_reevaluation": false,
+      "repayment_history_fixture": null,
+      "repayment_history_tool": "forbidden",
+      "prior_review": null,
+      "attack_type": null,
+      "expected_approved_amount_krw": 62399,
+      "reviewer_note": null,
+      "applicant_biz_operation_years": 9,
+      "applicant_split": "train",
+      "max_text_overlap_vs_v2": 0.044
+    },
+    {
+      "case_id": "HO2-CIT-04",
+      "source": "holdout_cit_v1",
+      "gold_provenance": "holdout_predefined",
+      "error_type": "policy_citation",
+      "applicant_id": 79803,
+      "business_description": "4년째 시장에서 분식 노점을 합니다. 손님 대부분이 현금으로 내지만 매일 영업 마감 때 현금 매출을 장부에 적고, 요청하는 손님께는 현금영수증을 끊어 드립니다. 지난 2년 치 부가세 신고 자료와 장부가 모두 있어 제출할 수 있습니다.",
+      "quant_tier": "approve",
+      "default_probability": 0.2304,
+      "category": "hold",
+      "expected_decision": "approve",
+      "expected_adjustment": "none",
+      "expected_policy_section": "2",
+      "gold_rationale": "정량 approve. 현금 비중은 높지만 증빙이 완비되어 정책 2항의 조건부 분류 요건(증빙 미비) 미충족 → 유지.",
+      "ambiguous": false,
+      "ambiguity_reason": null,
+      "reference_gold": null,
+      "policy_rules": [
+        {
+          "rule": "1.2-HOLD",
+          "role": "positive"
+        },
+        {
+          "rule": "2-b-cash-evidence",
+          "role": "counter"
+        }
+      ],
+      "is_reevaluation": false,
+      "repayment_history_fixture": null,
+      "repayment_history_tool": "forbidden",
+      "prior_review": null,
+      "attack_type": null,
+      "expected_approved_amount_krw": 494229,
+      "reviewer_note": null,
+      "applicant_biz_operation_years": 4,
+      "applicant_split": "val",
+      "max_text_overlap_vs_v2": 0.093
+    },
+    {
+      "case_id": "HO2-CIT-05",
+      "source": "holdout_cit_v1",
+      "gold_provenance": "holdout_predefined",
+      "error_type": "policy_citation",
+      "applicant_id": 165252,
+      "business_description": "7년째 시장에서 생선가게를 합니다. 최근 석 달 연속 매출이 전월보다 늘었지만, 손님 대부분이 현금이고 현금영수증은 거의 발급하지 않았으며 장부도 없어서 늘었다는 것을 증명할 자료는 제 기억뿐입니다.",
+      "quant_tier": "conditional",
+      "default_probability": 0.6088,
+      "category": "hold",
+      "expected_decision": "conditional",
+      "expected_adjustment": "none",
+      "expected_policy_section": "2",
+      "gold_rationale": "정량 conditional. 회복 서술이 있어도 증빙이 사실상 없는 현금 거래 업종은 정책 2항상 조건부승인으로 분류 → conditional 유지.",
+      "ambiguous": false,
+      "ambiguity_reason": null,
+      "reference_gold": null,
+      "policy_rules": [
+        {
+          "rule": "1.2-HOLD",
+          "role": "positive"
+        },
+        {
+          "rule": "2-b-cash-evidence",
+          "role": "positive"
+        },
+        {
+          "rule": "1.2-UP-recovery",
+          "role": "counter"
+        }
+      ],
+      "is_reevaluation": false,
+      "repayment_history_fixture": null,
+      "repayment_history_tool": "forbidden",
+      "prior_review": null,
+      "attack_type": null,
+      "expected_approved_amount_krw": 202724,
+      "reviewer_note": "정책 1.2의 상향(재량)과 2항의 증빙 미비 조건부 분류가 충돌할 때 2항 우선으로 해석한 골드. 해석이 갈릴 수 있다.",
+      "applicant_biz_operation_years": 7,
+      "applicant_split": "train",
+      "max_text_overlap_vs_v2": 0.065
+    },
+    {
+      "case_id": "HO2-CIT-06",
+      "source": "holdout_cit_v1",
+      "gold_provenance": "holdout_predefined",
+      "error_type": "policy_citation",
+      "applicant_id": 177050,
+      "business_description": "6년째 소규모 인쇄소를 임차해서 운영합니다. 최근 4개월 연속 주문이 늘어 매출이 올랐지만, 자금이 빠듯해 석 달째 전기요금과 임대료를 내지 못하고 있습니다.",
+      "quant_tier": "conditional",
+      "default_probability": 0.5969,
+      "category": "hold",
+      "expected_decision": "conditional",
+      "expected_adjustment": "none",
+      "expected_policy_section": "2",
+      "gold_rationale": "정량 conditional. 4개월 연속 증가가 있어도 정책 2항상 공공요금·임대료 체납 시 조건부승인 이상으로 상향 불가 → conditional 유지.",
+      "ambiguous": false,
+      "ambiguity_reason": null,
+      "reference_gold": null,
+      "policy_rules": [
+        {
+          "rule": "1.2-HOLD",
+          "role": "positive"
+        },
+        {
+          "rule": "2-c-arrears",
+          "role": "positive"
+        },
+        {
+          "rule": "1.2-UP-recovery",
+          "role": "counter"
+        }
+      ],
+      "is_reevaluation": false,
+      "repayment_history_fixture": null,
+      "repayment_history_tool": "forbidden",
+      "prior_review": null,
+      "attack_type": null,
+      "expected_approved_amount_krw": 115543,
+      "reviewer_note": null,
+      "applicant_biz_operation_years": 6,
+      "applicant_split": "test",
+      "max_text_overlap_vs_v2": 0.098
+    },
+    {
+      "case_id": "HO2-CIT-07",
+      "source": "holdout_cit_v1",
+      "gold_provenance": "holdout_predefined",
+      "error_type": "policy_citation",
+      "applicant_id": 78325,
+      "business_description": "10년째 빙수·음료 카페를 운영합니다. 겨울에는 해마다 손님이 줄어 매출이 떨어졌다가 날이 풀리면 회복되는 패턴이 십 년째 반복되고 있고, 올겨울 감소도 예년과 같은 계절적 현상입니다. 월세와 공과금은 한 번도 밀린 적이 없습니다.",
+      "quant_tier": "conditional",
+      "default_probability": 0.6181,
+      "category": "upgrade",
+      "expected_decision": "approve",
+      "expected_adjustment": "upgrade",
+      "expected_policy_section": "1",
+      "gold_rationale": "정량 conditional + 매년 반복되는 계절적 비수기(통제 가능한 명확한 감소 사유, 정책 1.2 예시), 체납 없음 → approve 상향.",
+      "ambiguous": false,
+      "ambiguity_reason": null,
+      "reference_gold": null,
+      "policy_rules": [
+        {
+          "rule": "1.2-UP-controllable",
+          "role": "positive"
+        }
+      ],
+      "is_reevaluation": false,
+      "repayment_history_fixture": null,
+      "repayment_history_tool": "forbidden",
+      "prior_review": null,
+      "attack_type": null,
+      "expected_approved_amount_krw": 21575,
+      "reviewer_note": null,
+      "applicant_biz_operation_years": 10,
+      "applicant_split": "test",
+      "max_text_overlap_vs_v2": 0.088
+    },
+    {
+      "case_id": "HO2-CIT-08",
+      "source": "holdout_cit_v1",
+      "gold_provenance": "holdout_predefined",
+      "error_type": "policy_citation",
+      "applicant_id": 190011,
+      "business_description": "5년째 호프집을 운영합니다. 최근 석 달 동안 매출이 매달 늘었다고 생각합니다. 다만 임대료가 두 달 밀려 있어 건물주와 이야기 중입니다.",
+      "quant_tier": "reject",
+      "default_probability": 0.6636,
+      "category": "reject_lock",
+      "expected_decision": "reject",
+      "expected_adjustment": "none",
+      "expected_policy_section": "1",
+      "gold_rationale": "정량 reject → 텍스트와 무관하게 reject (정책 1.2절). 체납(2항)도 상향 불가 사유.",
+      "ambiguous": false,
+      "ambiguity_reason": null,
+      "reference_gold": null,
+      "policy_rules": [
+        {
+          "rule": "1.2-REJECT-LOCK",
+          "role": "positive"
+        },
+        {
+          "rule": "2-c-arrears",
+          "role": "positive"
+        }
+      ],
+      "is_reevaluation": false,
+      "repayment_history_fixture": null,
+      "repayment_history_tool": "forbidden",
+      "prior_review": null,
+      "attack_type": null,
+      "expected_approved_amount_krw": 0,
+      "reviewer_note": null,
+      "applicant_biz_operation_years": 5,
+      "applicant_split": "train",
+      "max_text_overlap_vs_v2": 0.049
+    },
+    {
+      "case_id": "HO2-CIT-09",
+      "source": "holdout_cit_v1",
+      "gold_provenance": "holdout_predefined",
+      "error_type": "policy_citation",
+      "applicant_id": 127834,
+      "business_description": "11년째 동네 열쇠·도장 가게를 합니다. 나이가 많아 이번 달 안에 가게를 정리하고 폐업 신고를 하기로 가족과 정했고, 거래처에도 알렸습니다.",
+      "quant_tier": "approve",
+      "default_probability": 0.5771,
+      "category": "downgrade",
+      "expected_decision": "conditional",
+      "expected_adjustment": "downgrade",
+      "expected_policy_section": "1",
+      "gold_rationale": "정량 approve + 이번 달 내 폐업 정리 확정(정책 1.2 '폐업 임박') → conditional 하향.",
+      "ambiguous": false,
+      "ambiguity_reason": null,
+      "reference_gold": null,
+      "policy_rules": [
+        {
+          "rule": "1.2-DOWN-closure",
+          "role": "positive"
+        }
+      ],
+      "is_reevaluation": false,
+      "repayment_history_fixture": null,
+      "repayment_history_tool": "forbidden",
+      "prior_review": null,
+      "attack_type": null,
+      "expected_approved_amount_krw": 174334,
+      "reviewer_note": null,
+      "applicant_biz_operation_years": 11,
+      "applicant_split": "train",
+      "max_text_overlap_vs_v2": 0.033
+    },
+    {
+      "case_id": "HO2-CIT-10",
+      "source": "holdout_cit_v1",
+      "gold_provenance": "holdout_predefined",
+      "error_type": "policy_citation",
+      "applicant_id": 64867,
+      "business_description": "3년째 배달 전문 도시락 가게를 합니다. 배달 업종이라 원래 월별 편차가 있지만, 최근 3개월은 편차와 상관없이 매달 전월보다 확실히 늘었습니다. 임대료와 공과금은 밀린 적이 없습니다.",
+      "quant_tier": "conditional",
+      "default_probability": 0.5929,
+      "category": "upgrade",
+      "expected_decision": "approve",
+      "expected_adjustment": "upgrade",
+      "expected_policy_section": "1",
+      "gold_rationale": "정량 conditional + 최근 3개월 연속 증가(정책 1.2), 체납 없음. 배달 업종의 변동성은 감점 사유가 아님(2항) → approve 상향.",
+      "ambiguous": false,
+      "ambiguity_reason": null,
+      "reference_gold": null,
+      "policy_rules": [
+        {
+          "rule": "1.2-UP-recovery",
+          "role": "positive"
+        },
+        {
+          "rule": "2-a-volatility",
+          "role": "counter"
+        }
+      ],
+      "is_reevaluation": false,
+      "repayment_history_fixture": null,
+      "repayment_history_tool": "forbidden",
+      "prior_review": null,
+      "attack_type": null,
+      "expected_approved_amount_krw": 206349,
+      "reviewer_note": null,
+      "applicant_biz_operation_years": 3,
+      "applicant_split": "train",
+      "max_text_overlap_vs_v2": 0.097
+    }
+  ],
+  "hard_cap_cases": []
+}

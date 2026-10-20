@@ -51,6 +51,8 @@ CreditFlow AI Agent는 소상공인의 매출·거래 데이터를 기반으로 
 
    검토 결과는 승인(approve) 또는 반박(reject)으로 반환된다. 이 단계에는 강제 Function Calling(mode=ANY)을 적용해 모든 검토 결과가 일관된 구조로 기록되도록 했다.
 
+   Critic이 승인 또는 조건부승인 건을 반박하면 `final_decision`은 그대로 두되 온체인 집행은 **보류(`status=HELD`)**한다. 하드 캡 체크, 지갑 조회·발급, 송금, 온체인 메모 기록을 전혀 하지 않고(거절 건의 `SKIPPED`와 같은 방식) 판정·근거·Critic 반박 내용만 기록해 사람이 검토하게 한다. Critic 결과가 누락되었거나 예상 밖의 값이면 명시적 승인이 아니므로 마찬가지로 보류한다. 재심사로 조건부에서 승인으로 상향된 건도 같은 규칙을 적용해 Critic이 반박하면 잔여 50%를 집행하지 않는다. 보류를 해제하거나 재판정하는 자동 절차는 아직 없다.
+
 5. **조건부승인 재심사 자동화**
    조건부승인 건은 90일이 지나면 Cloud Scheduler가 재심사를 자동으로 트리거한다. 재심사 결과 승인으로 상향되면 미집행된 잔여 한도를 추가로 집행한다. 해당 과정은 합성 후속 텍스트가 준비된 신청자 61059번을 통해 종단 간 검증을 완료했으며, 스케줄러와 조회 쿼리는 특정 신청자에 종속되지 않는 범용 구조로 구현했다. 최초 집행과 추가 집행 모두 동일한 하드캡 검증을 거치므로, 어떤 판정 결과에서도 사전에 설정된 집행 한도를 초과할 수 없다.
 
@@ -90,7 +92,8 @@ CreditFlow AI Agent는 소상공인의 매출·거래 데이터를 기반으로 
        - (필요 시) RAG로 정책 조항 검색 — 질의문도 모델이 직접 작성
        - record_decision 호출로 최종 판정 제출 (정성 조정 규정 적용)
    → Critic Agent가 별도 Gemini 호출로 정책 조항 대비 1차 판정을 독립 재검토(반박/승인)
-   → Solana devnet USDC 집행 + SPL Memo(근거 해시)
+   → Critic 승인: Solana devnet USDC 집행 + SPL Memo(근거 해시)
+     Critic 반박: 집행 보류(HELD) — 송금 없이 기록만, 사람 검토
    → BigQuery 기록 (판정 근거 + Critic 검증 결과)
 ```
 
@@ -127,6 +130,7 @@ flowchart TB
 
     HardCap{"하드 캡 체크<br/>건별 500만원 / 일별 2천만원<br/>(payment_mock._check_hard_caps)"}
     Blocked["집행 차단<br/>(FundControlError — 판정 결과와 무관하게 즉시 중단)"]
+    Held["집행 보류 (status=HELD)<br/>지갑·송금·하드 캡 없음 · 판정/근거/Critic 반박만 기록<br/>사람 검토 대상 (자동 재판정 없음)"]
 
     subgraph Chain["Solana devnet"]
         Wallet["임베디드 지갑<br/>(없으면 자동 발급, 시드구문 불필요)"]
@@ -148,12 +152,14 @@ flowchart TB
     API <--> FS
     API --> Decision --> Critic
     Critic --> API
-    API -->|승인/조건부승인| HardCap
+    API -->|승인/조건부승인 + Critic 승인| HardCap
+    API -->|승인/조건부승인 + Critic 반박| Held
     HardCap -->|한도 이내| Wallet --> Transfer
     HardCap -->|한도 초과| Blocked
     API -->|상환 실행| Repay
-    API -->|재심사 상향 시 잔여집행 — 하드캡 미적용| Transfer
+    API -->|재심사 상향 + Critic 승인 시 잔여집행 — 하드캡 적용| HardCap
     Transfer --> BQ
+    Held -->|HELD 기록| BQ
     Repay -->|상환 이력 기록| BQ
     BQ -.->|get_repayment_history_tool: 재심사 시 참고| Decision
     API --> BQ
@@ -374,5 +380,5 @@ Decision Agent + Critic Agent 전체 파이프라인을 **평가 전에 정답�
 - 정적 Kaggle 데이터셋 기반 PoC로, 사업자 설명 텍스트는 자체 작성한 합성(synthetic) 텍스트다.
 - 조건부승인 건의 "3개월 후 자동 재심사"는 스케줄러/쿼리 구조 자체는 범용이지만, 실제 종단간 검증은 합성 후속 텍스트를 준비한 신청자 1명(61059)에 대해서만 완료했다.
 - Google ADK 기반 에이전트(`adk_agent.py`)는 도구 자율 선택 구조를 검증한 프로토타입으로 남겨뒀다 — 최종 배포 경로는 동일한 원리를 `google-genai` SDK로 직접 구현했다.
-- Critic Agent는 1차 판정에 대해 승인/반박만 판단하며, 반박 시 자동으로 재판정을 트리거하는 피드백 루프는 아직 구현하지 않았다 (반박 결과는 대시보드/리포트에 노출되어 사람이 검토할 수 있다).
+- Critic Agent는 1차 판정에 대해 승인/반박만 판단한다. 반박하면 집행을 보류(`HELD`)하고 사람 검토 대상으로 남기며, 자동으로 재판정하거나 보류를 해제하는 피드백 루프는 아직 구현하지 않았다. 보류 건을 풀어 집행하는 절차도 아직 없다 (반박 결과는 대시보드/리포트에 노출되어 사람이 검토할 수 있다).
 - devnet/테스트 데이터를 사용하는 PoC이며, 실제 금융 서비스가 아니다.

@@ -48,6 +48,9 @@ def run_one(applicant_id: int) -> None:
         decision=decision_result.final_decision,
         requested_loan_krw=decision_result.approved_amount_krw,
         rationale=decision_result.decision_reasoning,
+        critic_verdict=decision_result.critic_verdict,
+        critic_reasoning=decision_result.critic_reasoning,
+        tool_call_summary=decision_result.tool_call_summary,
     )
     print(f"집행 상태: {payment_result.status}")
     if payment_result.tx_signature:

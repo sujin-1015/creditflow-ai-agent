@@ -75,6 +75,15 @@ def get_publisher():
     return _publisher
 
 
+def _hold_reason(critic_reasoning, policy_violation: str = "") -> str:
+    """HELD(Critic 반박으로 집행 보류) 건의 사람이 읽는 보류 사유. 위반 조항은 저장되지 않으므로
+    (BigQuery에 policy_violation 컬럼 없음) 방금 심사한 응답에서만 채워진다."""
+    reason = f"Critic Agent가 1차 판정을 반박해 집행을 보류했습니다: {critic_reasoning or '(사유 없음)'}"
+    if policy_violation:
+        reason += f" [위반 조항: {policy_violation}]"
+    return reason
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -98,6 +107,10 @@ def underwrite(applicant_id: int, _: None = Depends(_require_demo_key)):
             "explorer_url": existing.get("explorer_url"),
             "approved_amount_krw": existing.get("requested_loan_krw"),
             "decision_reasoning": existing.get("rationale"),
+            "critic_verdict": existing.get("critic_verdict"),
+            "critic_reasoning": existing.get("critic_reasoning"),
+            "held": existing.get("status") == "HELD",
+            "hold_reason": _hold_reason(existing.get("critic_reasoning")) if existing.get("status") == "HELD" else None,
             "idempotent_replay": True,
             "original_timestamp": ts.isoformat() if ts else None,
         }
@@ -160,8 +173,16 @@ def underwrite(applicant_id: int, _: None = Depends(_require_demo_key)):
             # 이벤트 발행 실패해도 심사/집행 자체는 이미 완료된 상태이므로 응답은 정상 반환
             event["pubsub_error"] = str(e)
 
+        # HELD는 에러가 아니라 정상 응답(200)이다 — 판정은 유효하고 집행만 보류됐다 (거절의 SKIPPED와 같은 취급).
+        held = payment_result.status == "HELD"
         return {
             **event,
+            "held": held,
+            "hold_reason": (
+                _hold_reason(decision_result.critic_reasoning, decision_result.critic_policy_violation)
+                if held
+                else None
+            ),
             "quant_tier": decision_result.quant_tier,
             "default_probability": decision_result.default_probability,
             "adjustment_applied": decision_result.adjustment_applied,
@@ -330,6 +351,7 @@ def _fetch_summary() -> dict:
           COUNTIF(decision = 'conditional') AS conditional,
           COUNTIF(decision = 'reject') AS rejected,
           COUNTIF(status = 'EXECUTED') AS executed,
+          COUNTIF(status = 'HELD') AS held,
           SUM(IF(status = 'EXECUTED', devnet_test_amount, 0)) AS total_disbursed
         FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`
     """
@@ -359,6 +381,19 @@ _ICON_MODE_HARDCAP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
 def _badge(decision: str) -> str:
     label = html.escape(_DECISION_KR.get(decision, decision or "-"))
     cls = _DECISION_BADGE_CLASS.get(decision, "badge-neutral")
+    return f'<span class="badge {cls}">{label}</span>'
+
+
+# 집행 상태(loan_decisions.status) 배지. HELD는 기존 .badge-warn(라이트/다크 CSS 변수가 이미 정의됨)을 재사용한다.
+_EXEC_STATUS_KR = {"EXECUTED": "집행 완료", "SKIPPED": "건너뜀", "HELD": "보류(Critic 반박)"}
+_EXEC_STATUS_BADGE_CLASS = {"EXECUTED": "badge-good", "SKIPPED": "badge-neutral", "HELD": "badge-warn"}
+
+
+def _status_badge(status: str) -> str:
+    if not status:
+        return '<span class="muted">-</span>'
+    label = html.escape(_EXEC_STATUS_KR.get(status, status))
+    cls = _EXEC_STATUS_BADGE_CLASS.get(status, "badge-neutral")
     return f'<span class="badge {cls}">{label}</span>'
 
 
@@ -418,7 +453,7 @@ def _money_cell(amount, currency: str) -> str:
 
 def _decisions_table_html(records: list[dict]) -> str:
     if not records:
-        return '<tr><td colspan="9" class="empty">아직 심사 기록이 없습니다.</td></tr>'
+        return '<tr><td colspan="10" class="empty">아직 심사 기록이 없습니다.</td></tr>'
     rows = []
     for r in records:
         ts = r.get("timestamp")
@@ -428,6 +463,7 @@ def _decisions_table_html(records: list[dict]) -> str:
             f'<tr data-row-key="{row_key}">'
             f'<td class="cell-mono">{r.get("applicant_id", "-")}</td>'
             f"<td>{_badge(r.get('decision'))}</td>"
+            f"<td>{_status_badge(r.get('status'))}</td>"
             f'<td class="cell-money">{r.get("requested_loan_krw", 0):,}원</td>'
             f"{_money_cell(r.get('devnet_test_amount'), r.get('currency'))}"
             f"<td>{_tx_link(r.get('tx_signature'), r.get('explorer_url'))}</td>"
@@ -446,11 +482,14 @@ def _reeval_table_html(records: list[dict]) -> str:
     rows = []
     for r in records:
         upgraded = r.get("upgraded")
-        result_badge = (
-            '<span class="badge badge-good">승인 상향</span>'
-            if upgraded
-            else '<span class="badge badge-neutral">유지</span>'
-        )
+        # reevaluations 테이블엔 status 컬럼이 없어, 상향됐는데 tx가 없으면 Critic 반박 보류(HELD)로 본다
+        # (상향된 건의 결과는 집행 아니면 보류뿐이다 — payment_mock.disburse_remaining 참고).
+        if upgraded and not r.get("tx_signature"):
+            result_badge = '<span class="badge badge-warn">상향·보류(Critic 반박)</span>'
+        elif upgraded:
+            result_badge = '<span class="badge badge-good">승인 상향</span>'
+        else:
+            result_badge = '<span class="badge badge-neutral">유지</span>'
         ts = r.get("reevaluated_at")
         ts_str = ts.astimezone(KST).strftime("%Y-%m-%d %H:%M KST") if ts else "-"
         flow = (
@@ -473,6 +512,7 @@ def _reeval_table_html(records: list[dict]) -> str:
     return "".join(rows)
 
 
+# 상환(repayments)은 Critic을 거치지 않으므로 HELD가 생기지 않는다 — 집행 상태 맵과 별도로 둔다.
 _REPAY_STATUS_KR = {"EXECUTED": "실행 완료", "SKIPPED": "건너뜀"}
 _REPAY_STATUS_BADGE_CLASS = {"EXECUTED": "badge-good", "SKIPPED": "badge-neutral"}
 
@@ -563,6 +603,7 @@ def _dashboard_payload(
     conditional = summary.get("conditional") or 0
     rejected = summary.get("rejected") or 0
     executed = summary.get("executed") or 0
+    held = summary.get("held") or 0
     total_disbursed = summary.get("total_disbursed") or 0
     approval_rate = (
         f'{(approved / total * 100):.0f}<span class="kpi-unit">%</span>' if total else "-"
@@ -582,9 +623,10 @@ def _dashboard_payload(
             "total": f"{total}",
             "approval_rate": approval_rate,
             "executed": f"{executed}",
+            "held": f"{held}",
             "disbursed": f'{total_disbursed:,.2f}<span class="kpi-unit">USDC</span>',
         },
-        "decisions_note": f"승인 {approved} · 조건부 {conditional} · 거절 {rejected}",
+        "decisions_note": f"승인 {approved} · 조건부 {conditional} · 거절 {rejected} · 보류 {held}",
         "decisions_rows_html": _decisions_table_html(decisions),
         "repayments_rows_html": _repayments_table_html(repayments),
         "reeval_rows_html": _reeval_table_html(reevaluations),
@@ -1449,6 +1491,7 @@ _DASHBOARD_JS = """
         setAll('.js-kpi-total', d.kpi.total);
         setAll('.js-kpi-approval', d.kpi.approval_rate);
         setAll('.js-kpi-executed', d.kpi.executed);
+        setAll('.js-kpi-held', d.kpi.held);
         setAll('.js-kpi-disbursed', d.kpi.disbursed);
       }
       setAll('.js-decisions-note', d.decisions_note || '');
@@ -1557,6 +1600,11 @@ _DASHBOARD_JS = """
                '<span class="narration-sentence" style="color:var(--error)">대출을 집행하지 않았습니다 (지갑 발급도 하지 않습니다).</span>';
       }
       const decisionLabel = data.decision === 'approve' ? '승인' : '조건부승인';
+      if (data.status === 'HELD') {
+        return '<b style="color:var(--warning)">' + decisionLabel + ' — 집행 보류</b>' +
+               '<span class="narration-sentence" style="color:var(--warning)">Critic Agent가 1차 판정을 반박해 송금하지 않았습니다 (지갑 발급도 하지 않습니다). 사람 검토가 필요합니다.' +
+               (data.critic_policy_violation ? ' 위반 조항: ' + escapeHtml(data.critic_policy_violation) : '') + '</span>';
+      }
       const decisionColor = data.decision === 'approve' ? 'var(--success)' : 'var(--warning)';
       const sentence = data.wallet_newly_issued
         ? '지갑이 없어 임베디드 지갑을 자동 발급하고 즉시 대출을 집행했습니다.'
@@ -1788,7 +1836,7 @@ _DASHBOARD_JS = """
 
 _DECISIONS_THEAD_HTML = (
     "<tr>"
-    "<th>신청자 ID</th><th>판정</th><th>대출한도(KRW)</th><th>devnet 집행액</th><th>tx</th>"
+    "<th>신청자 ID</th><th>판정</th><th>집행 상태</th><th>대출한도(KRW)</th><th>devnet 집행액</th><th>tx</th>"
     "<th>Critic 검증</th><th>에이전트 도구 호출 순서</th><th>시각</th><th></th>"
     "</tr>"
 )
@@ -1929,6 +1977,10 @@ def status_page(delete_error: str = None):
       <div class="kpi-tile stagger-in" style="animation-delay:210ms">
         <span class="kpi-label">누적 집행액 (devnet)</span>
         <span class="kpi-value js-kpi-disbursed">{d["kpi"]["disbursed"]}</span>
+      </div>
+      <div class="kpi-tile stagger-in" style="animation-delay:280ms">
+        <span class="kpi-label">보류 건수 (Critic 반박)</span>
+        <span class="kpi-value js-kpi-held">{d["kpi"]["held"]}</span>
       </div>
     </div>
     <div class="js-live-strip-side live-strip-stack stagger-in" style="animation-delay:260ms">{d["in_progress_html_side"]}</div>

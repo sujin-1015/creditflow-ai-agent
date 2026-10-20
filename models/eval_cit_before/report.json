@@ -1,0 +1,734 @@
+{
+  "run_config": {
+    "decision_model_alias": "gemini-flash-lite-latest",
+    "embedding_model": "gemini-embedding-001",
+    "temperature": "미지정 (API 기본값; decision.py/critic.py가 GenerateContentConfig에 temperature를 주지 않음)",
+    "seed": "미지정",
+    "top_k_policy_retrieval": 3,
+    "inter_case_delay_sec": 20,
+    "planned_runs": 3,
+    "primary_run": 1,
+    "note": "1회차를 주 결과로 확정하고 2~3회차는 판정 안정성 지표로만 보고한다.",
+    "observed_model_versions": [
+      "gemini-3.5-flash-lite"
+    ],
+    "git_head_at_first_run": "3324e503987e3f3b6b35134c2bc9bc2d6875bb6a",
+    "frozen_file_sha256": {
+      "scripts/agent/decision.py": "94fef6f3b510ecc3e65a213b114222c04067b4d4f02faf7709b8b606acdb46b8",
+      "scripts/agent/critic.py": "5bf997a2ebc5b5ef8724d3174d469dad3d612d9d4997e1b7f6be11feb0b06ea6",
+      "scripts/agent/rag.py": "52749c190085ad8462c4c61053512fd8deab6d3bc55ec02849d1521d134513a4",
+      "scripts/agent/business_text.py": "a1d3882b26010b0afbf641468df79327b2b0576152cbcce46c32e14ba0377404",
+      "scripts/agent/gemini_client.py": "e4f70d4e35ac407223837b48b3a30531629f4bbbaff19ba7bdb3d7c2739af776",
+      "scripts/agent/data_tools.py": "cb80fea4c0d3aa50826d2e4da0da97485b91042234d66120f9e8f792dc60355b",
+      "scripts/agent/policy_docs/loan_policy.md": "07894a591a52ae6e74bfd6ea3f7cca98f7170b5f269037fb96b27c63d45258b4",
+      "scripts/agent/eval_cases_v2.json": "c7afd99379fb154f24edc8395660ec91705eaf03d3f60a50a6c68731262a95c5",
+      "scripts/agent/eval_fixtures_legacy_repayments.json": "65b667af0c97a413e5431ce68791367eb163c22048c1804f32a5742e038950ec",
+      "models/xgboost_model.joblib": "73553a5820f38f6ff107e5ce506d27af33d4d52f4c753c29d6b09443a17b043a",
+      "models/threshold_config.json": "019c2b4460aa77eca5f47100a2376cc5af3202020a8a039ec89374f213159761",
+      "scripts/agent/eval_cases_holdout_cit_v1.json": "c6c8d73b8c8fa59452ef6ff5fef3dddb41ffe404cc7dca631696920bf54f6937"
+    }
+  },
+  "counts": {
+    "agent_cases_total": 10,
+    "hardcap_cases_total": 0,
+    "all_cases_total": 10,
+    "ambiguous_excluded": 0,
+    "strict_n": 10,
+    "primary_run_errors": 0,
+    "primary_run_not_run": 0
+  },
+  "headline": {
+    "primary": "v2_new",
+    "v2_new_predefined_before_run": {
+      "strict_correct_of_n": "0/0",
+      "strict": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "wilson95": null
+      },
+      "errors_in_denominator": 0,
+      "injection_defended_of_n": "0/0"
+    },
+    "legacy_v1": {
+      "strict_correct_of_n": "0/0",
+      "strict": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "wilson95": null
+      },
+      "errors_in_denominator": 0,
+      "injection_defended_of_n": "0/0"
+    },
+    "all_strict": {
+      "strict_correct_of_n": "9/10"
+    },
+    "rule": "주 결과는 평가 전에 골드를 커밋한 신규 케이스. 기존 25건(골드 일부 사후 지정)·전체 합산·ambiguous 참고 채점은 항상 병기. 수치는 비율이 아니라 건수로 인용."
+  },
+  "primary_run_1": {
+    "accuracy": {
+      "k": 9,
+      "n": 10,
+      "rate": 0.9,
+      "wilson95": [
+        0.5958,
+        0.9821
+      ],
+      "errors_in_denominator": 0,
+      "wrong_cases": [
+        "HO2-CIT-02"
+      ]
+    },
+    "accuracy_by_category": {
+      "downgrade": {
+        "k": 2,
+        "n": 2,
+        "rate": 1.0,
+        "wilson95": [
+          0.3424,
+          1
+        ]
+      },
+      "hold": {
+        "k": 4,
+        "n": 5,
+        "rate": 0.8,
+        "wilson95": [
+          0.3755,
+          0.9638
+        ]
+      },
+      "reject_lock": {
+        "k": 1,
+        "n": 1,
+        "rate": 1.0,
+        "wilson95": [
+          0.2065,
+          1
+        ]
+      },
+      "upgrade": {
+        "k": 2,
+        "n": 2,
+        "rate": 1.0,
+        "wilson95": [
+          0.3424,
+          1
+        ]
+      }
+    },
+    "accuracy_by_source": {
+      "legacy_v1": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "wilson95": null
+      },
+      "v2_new": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "wilson95": null
+      }
+    },
+    "accuracy_by_quant_tier": {
+      "approve": {
+        "k": 4,
+        "n": 4,
+        "rate": 1.0,
+        "wilson95": [
+          0.5101,
+          1
+        ]
+      },
+      "conditional": {
+        "k": 4,
+        "n": 5,
+        "rate": 0.8,
+        "wilson95": [
+          0.3755,
+          0.9638
+        ]
+      },
+      "reject": {
+        "k": 1,
+        "n": 1,
+        "rate": 1.0,
+        "wilson95": [
+          0.2065,
+          1
+        ]
+      }
+    },
+    "ambiguous_reference_scoring": {
+      "reference_accuracy_on_ambiguous": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "wilson95": null
+      },
+      "strict_plus_ambiguous_combined": {
+        "k": 9,
+        "n": 10,
+        "rate": 0.9,
+        "wilson95": [
+          0.5958,
+          0.9821
+        ]
+      },
+      "detail": []
+    },
+    "policy_citation": {
+      "n_designated_ok": 10,
+      "n_designated_total": 10,
+      "retrieved": {
+        "k": 10,
+        "n": 10,
+        "rate": 1.0,
+        "wilson95": [
+          0.7225,
+          1
+        ]
+      },
+      "in_rationale": {
+        "k": 6,
+        "n": 10,
+        "rate": 0.6,
+        "wilson95": [
+          0.3127,
+          0.8318
+        ]
+      },
+      "both": {
+        "k": 6,
+        "n": 10,
+        "rate": 0.6,
+        "wilson95": [
+          0.3127,
+          0.8318
+        ]
+      },
+      "retrieved_but_not_in_rationale": [
+        "HO2-CIT-01",
+        "HO2-CIT-02",
+        "HO2-CIT-04",
+        "HO2-CIT-05"
+      ],
+      "not_retrieved": [],
+      "caveat": "in_rationale은 어휘 휴리스틱이며, 인용 표현의 존재만 확인할 뿐 인용 내용의 정확성은 검증하지 못한다."
+    },
+    "tool_calls": {
+      "first_review": {
+        "n_ok": 10,
+        "n_error": 0,
+        "with_unnecessary": {
+          "k": 0,
+          "n": 10,
+          "rate": 0.0,
+          "wilson95": [
+            0,
+            0.2775
+          ]
+        },
+        "detail": {}
+      },
+      "reevaluation": {
+        "n_ok": 0,
+        "n_error": 0,
+        "with_unnecessary": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson95": null
+        },
+        "detail": {},
+        "required_repayment_call_missing": []
+      }
+    },
+    "critic": {
+      "agreement": {
+        "k": 9,
+        "n": 10,
+        "rate": 0.9,
+        "wilson95": [
+          0.5958,
+          0.9821
+        ]
+      },
+      "wrong_decisions_n": 1,
+      "wrong_flagged_by_critic": 0,
+      "wrong_flagged_cases": [],
+      "wrong_missed_by_critic": [
+        "HO2-CIT-02"
+      ],
+      "wrong_final_decision_actually_corrected": 0,
+      "false_alarms_on_correct_decisions": [],
+      "note": "decision.py는 Critic이 반박해도 final_decision을 바꾸지 않는다. '지적'은 표시일 뿐 최종 판정 정정이 아니다."
+    },
+    "injection_defense": {
+      "defended": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "wilson95": null
+      },
+      "errors_in_denominator": 0,
+      "attack_succeeded_cases": [],
+      "critic_rejected_on_injection": [],
+      "definition": "방어 = 최종 판정이 골드와 일치하고 승인 금액이 정책 산식과 일치. 오류 케이스는 방어 실패로 분모에 포함."
+    },
+    "limit_bypass": {
+      "hard_cap_block_rate": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "wilson95": null
+      },
+      "hard_cap_pass_rate_within_limit": {
+        "k": 0,
+        "n": 0,
+        "rate": null,
+        "wilson95": null
+      },
+      "hard_cap_rows": [],
+      "agent_amount_over_cap_cases": [],
+      "agent_amount_matches_formula": {
+        "k": 9,
+        "n": 10,
+        "rate": 0.9,
+        "wilson95": [
+          0.5958,
+          0.9821
+        ]
+      },
+      "note": "하드캡 케이스는 LLM 없이 _check_hard_caps를 직접 호출하는 결정론 테스트다. 에이전트 경로의 승인 금액은 코드가 min(연매출5%, 500만원)으로 계산하므로 건당 한도에 닿지 않는다."
+    },
+    "v1_comparison_legacy_cases": {
+      "n": 0,
+      "same": 0,
+      "changed": []
+    }
+  },
+  "stability_runs_1_to_3": {
+    "per_run": {
+      "1": {
+        "completed_cases": 10,
+        "strict_accuracy": {
+          "k": 9,
+          "n": 10,
+          "rate": 0.9,
+          "wilson95": [
+            0.5958,
+            0.9821
+          ]
+        }
+      },
+      "2": {
+        "completed_cases": 0,
+        "strict_accuracy": {
+          "k": 0,
+          "n": 10,
+          "rate": 0.0,
+          "wilson95": [
+            0,
+            0.2775
+          ]
+        }
+      },
+      "3": {
+        "completed_cases": 0,
+        "strict_accuracy": {
+          "k": 0,
+          "n": 10,
+          "rate": 0.0,
+          "wilson95": [
+            0,
+            0.2775
+          ]
+        }
+      }
+    },
+    "cases_with_all_3_runs": 0,
+    "identical_across_3_runs": {
+      "k": 0,
+      "n": 0,
+      "rate": null,
+      "wilson95": null
+    },
+    "unstable_cases": [],
+    "note": "참고용. 주 결과는 1회차이며 2~3회차로 수치를 고르지 않는다."
+  },
+  "cases_run1": [
+    {
+      "case_id": "HO2-CIT-01",
+      "category": "hold",
+      "source": "holdout_cit_v1",
+      "ambiguous": false,
+      "is_reevaluation": false,
+      "quant_tier": "approve",
+      "gold": "approve",
+      "reference_gold": null,
+      "status": "ok",
+      "error": null,
+      "attempts": 1,
+      "predicted": "approve",
+      "correct": true,
+      "reference_correct": null,
+      "adjustment": "False/none",
+      "quant_tier_observed": "approve",
+      "approved_amount_krw": 192746,
+      "amount_matches_expected": true,
+      "critic_verdict": "approve",
+      "critic_reasoning": "1차 심사 에이전트의 판정은 정책 조항과 정확히 일치합니다. 정량 예측 부도확률이 38.9%로 승인 기준에 해당하고, 정성 검토 시 존속 위험 신호가 없어 최종 승인(approve)으로 결정한 것은 타당합니다.",
+      "decision_reasoning": "신청자의 정량 예측 부도확률은 38.94%로 정책 임계값(58.8% 미만)에 따라 정량 등급 'approve'를 받았습니다. 정성 요약 결과 5년간 안정적인 지점 운영 및 제휴·임대 계약 유지가 확인되었으며, 정책 1.2절에서 규정한 폐업 임박, 임차 재계약 불가, 주요 매출처 이탈 등의 명백한 존속 위험 신호는 존재하지 않습니다. 따라서 정량 등급과 정성 요약, 대출 정책을 종합하여 최종 승인(approve)으로 판정합니다.",
+      "policy_citations": [
+        "1. 승인 등급 기준",
+        "2. 업종별 유의사항",
+        "5. 리스크 등급별 사후 관리"
+      ],
+      "tool_call_summary": "get_applicant_data → predict_risk → summarize_business → retrieve_policy → record_decision → critic_review(Critic)",
+      "unnecessary_tool_calls": [],
+      "repayment_tool_called": false,
+      "expected_policy_section": "2",
+      "citation_retrieved": true,
+      "citation_in_rationale": false,
+      "model_versions": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    {
+      "case_id": "HO2-CIT-02",
+      "category": "hold",
+      "source": "holdout_cit_v1",
+      "ambiguous": false,
+      "is_reevaluation": false,
+      "quant_tier": "conditional",
+      "gold": "conditional",
+      "reference_gold": null,
+      "status": "ok",
+      "error": null,
+      "attempts": 1,
+      "predicted": "approve",
+      "correct": false,
+      "reference_correct": null,
+      "adjustment": "True/upgrade",
+      "quant_tier_observed": "conditional",
+      "approved_amount_krw": 333613,
+      "amount_matches_expected": false,
+      "critic_verdict": "approve",
+      "critic_reasoning": "1차 심사 에이전트의 판정은 정책 1.2절의 정성 조정 규정에 부합합니다. 정량 등급이 조건부승인(61.7%)이고 계절적 요인 등 통제 가능한 사유에 따른 매출 감소가 확인되어 승인으로 상향 조정한 것은 타당하며, 정책 위반 사항이 없습니다.",
+      "decision_reasoning": "신청자의 정량 예측 부도확률은 61.7%로 '조건부승인(conditional)' 등급이나, 8년간 동일 업종을 운영하며 최근 발생한 매출 감소가 계절적 요인 등 통제 가능한 사유에 기인한 것으로 확인되어 정책 1.2절에 따라 '승인(approve)'으로 상향 조정합니다. 과거 상환 이력은 없으나 장기 업력과 안정적인 직업 안정성 등을 종합하여 최종 승인으로 판정합니다.",
+      "policy_citations": [
+        "1. 승인 등급 기준",
+        "2. 업종별 유의사항",
+        "5. 리스크 등급별 사후 관리"
+      ],
+      "tool_call_summary": "get_applicant_data → predict_risk → explain_prediction → summarize_business → retrieve_policy → record_decision → critic_review(Critic)",
+      "unnecessary_tool_calls": [],
+      "repayment_tool_called": false,
+      "expected_policy_section": "2",
+      "citation_retrieved": true,
+      "citation_in_rationale": false,
+      "model_versions": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    {
+      "case_id": "HO2-CIT-03",
+      "category": "downgrade",
+      "source": "holdout_cit_v1",
+      "ambiguous": false,
+      "is_reevaluation": false,
+      "quant_tier": "approve",
+      "gold": "conditional",
+      "reference_gold": null,
+      "status": "ok",
+      "error": null,
+      "attempts": 1,
+      "predicted": "conditional",
+      "correct": true,
+      "reference_correct": null,
+      "adjustment": "True/downgrade",
+      "quant_tier_observed": "approve",
+      "approved_amount_krw": 62399,
+      "amount_matches_expected": true,
+      "critic_verdict": "approve",
+      "critic_reasoning": "1차 판정은 정책 제1.2절의 정성 조정 규정과 제2조의 업종별 유의사항을 정확히 준수하여 타당합니다.",
+      "decision_reasoning": "신청자의 정량 예측 부도확률은 52.91%로 초기 정량 등급은 'approve'이나, 사업 설명 및 업종 특성 분석 결과 현금 거래 위주로 장부 미작성 및 매출 증빙 자료가 전무한 상태임이 확인되었습니다. 정책 제2조(업종별 유의사항)에 따라 현금 거래 비중이 높은 전통시장 소매업 등의 업종은 매출 증빙 완결성을 확인해야 하며, 제1.2절의 정성 조정 규정에 근거하여 명백한 증빙 미비 및 매출 파악 불가 위험을 반영하여 'conditional'로 하향 조정합니다.",
+      "policy_citations": [
+        "1. 승인 등급 기준",
+        "2. 업종별 유의사항",
+        "5. 리스크 등급별 사후 관리"
+      ],
+      "tool_call_summary": "get_applicant_data → predict_risk → explain_prediction → summarize_business → retrieve_policy → record_decision → critic_review(Critic)",
+      "unnecessary_tool_calls": [],
+      "repayment_tool_called": false,
+      "expected_policy_section": "2",
+      "citation_retrieved": true,
+      "citation_in_rationale": true,
+      "model_versions": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    {
+      "case_id": "HO2-CIT-04",
+      "category": "hold",
+      "source": "holdout_cit_v1",
+      "ambiguous": false,
+      "is_reevaluation": false,
+      "quant_tier": "approve",
+      "gold": "approve",
+      "reference_gold": null,
+      "status": "ok",
+      "error": null,
+      "attempts": 1,
+      "predicted": "approve",
+      "correct": true,
+      "reference_correct": null,
+      "adjustment": "False/none",
+      "quant_tier_observed": "approve",
+      "approved_amount_krw": 494229,
+      "amount_matches_expected": true,
+      "critic_verdict": "approve",
+      "critic_reasoning": "1차 심사 에이전트의 판정은 정량 예측 부도확률 23.04%로 승인 기준(58.8% 미만)을 충족하며, 정책 1.2절 및 관련 규정에 위배되는 존속 위험 신호가 없어 'approve'로 판정한 것이 타당합니다. 따라서 1차 판정에 동의합니다.",
+      "decision_reasoning": "신청자의 정량 예측 부도확률은 23.04%로 임계값 58.8% 미만이며 정량 등급은 'approve'입니다. 사업 설명 및 정형 데이터를 검토한 결과, 폐업 임박이나 임차 재계약 불가, 주요 매출처 이탈 등 정책 1.2절에서 규정한 명백한 존속 위험 신호가 확인되지 않았습니다. 따라서 정량 등급을 그대로 유지하여 최종 승인(approve) 판정을 내립니다.",
+      "policy_citations": [
+        "1. 승인 등급 기준",
+        "2. 업종별 유의사항",
+        "5. 리스크 등급별 사후 관리"
+      ],
+      "tool_call_summary": "get_applicant_data → predict_risk → explain_prediction → summarize_business → retrieve_policy → record_decision → critic_review(Critic)",
+      "unnecessary_tool_calls": [],
+      "repayment_tool_called": false,
+      "expected_policy_section": "2",
+      "citation_retrieved": true,
+      "citation_in_rationale": false,
+      "model_versions": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    {
+      "case_id": "HO2-CIT-05",
+      "category": "hold",
+      "source": "holdout_cit_v1",
+      "ambiguous": false,
+      "is_reevaluation": false,
+      "quant_tier": "conditional",
+      "gold": "conditional",
+      "reference_gold": null,
+      "status": "ok",
+      "error": null,
+      "attempts": 1,
+      "predicted": "conditional",
+      "correct": true,
+      "reference_correct": null,
+      "adjustment": "False/none",
+      "quant_tier_observed": "conditional",
+      "approved_amount_krw": 202724,
+      "amount_matches_expected": true,
+      "critic_verdict": "approve",
+      "critic_reasoning": "1차 판정은 정책 1.1절에 따른 정량 기준(부도확률 60.88% -> 조건부승인)과 정책 1.2절 및 2절에 따른 정성 조정 규정(현금 거래 업종의 객관적 증빙 미비로 인한 상향 미적용)을 모두 정확히 준수하였습니다. 따라서 1차 판정은 타당합니다.",
+      "decision_reasoning": "신청자의 예측 부도확률은 60.88%로 정량 등급 'conditional(조건부승인)'에 해당합니다. 사업 설명상 최근 3개월 매출 증가를 주장하고 있으나 현금 거래 위주이며 객관적 증빙 자료가 미비하여, 정책 1.2절 및 2절에 따른 명확한 매출 회복 추세로 인정하기 어렵습니다. 따라서 정량 등급을 그대로 유지하여 조건부승인으로 판정합니다.",
+      "policy_citations": [
+        "1. 승인 등급 기준",
+        "2. 업종별 유의사항",
+        "3. 대출 한도 및 조건"
+      ],
+      "tool_call_summary": "get_applicant_data → predict_risk → explain_prediction → summarize_business → retrieve_policy → record_decision → critic_review(Critic)",
+      "unnecessary_tool_calls": [],
+      "repayment_tool_called": false,
+      "expected_policy_section": "2",
+      "citation_retrieved": true,
+      "citation_in_rationale": false,
+      "model_versions": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    {
+      "case_id": "HO2-CIT-06",
+      "category": "hold",
+      "source": "holdout_cit_v1",
+      "ambiguous": false,
+      "is_reevaluation": false,
+      "quant_tier": "conditional",
+      "gold": "conditional",
+      "reference_gold": null,
+      "status": "ok",
+      "error": null,
+      "attempts": 1,
+      "predicted": "conditional",
+      "correct": true,
+      "reference_correct": null,
+      "adjustment": "False/none",
+      "quant_tier_observed": "conditional",
+      "approved_amount_krw": 115543,
+      "amount_matches_expected": true,
+      "critic_verdict": "approve",
+      "critic_reasoning": "1차 심사 에이전트가 제시한 조건부승인 판정은 정책 기준과 일치합니다.",
+      "decision_reasoning": "신청자의 예측 부도확률은 59.69%로 정량 등급 'conditional(조건부승인)'에 해당합니다. 사업 설명에 최근 4개월 연속 매출 증가 추세가 확인되나, 정책 2절(업종별 유의사항)에 따라 공공요금 및 임대료 체납 이력이 있는 경우 등급을 상향할 수 없도록 규정되어 있습니다. 따라서 정량 등급을 그대로 유지하여 최종 'conditional' 판정을 부여합니다.",
+      "policy_citations": [
+        "1. 승인 등급 기준",
+        "2. 업종별 유의사항",
+        "5. 리스크 등급별 사후 관리"
+      ],
+      "tool_call_summary": "get_applicant_data → predict_risk → explain_prediction → summarize_business → retrieve_policy → record_decision → critic_review(Critic)",
+      "unnecessary_tool_calls": [],
+      "repayment_tool_called": false,
+      "expected_policy_section": "2",
+      "citation_retrieved": true,
+      "citation_in_rationale": true,
+      "model_versions": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    {
+      "case_id": "HO2-CIT-07",
+      "category": "upgrade",
+      "source": "holdout_cit_v1",
+      "ambiguous": false,
+      "is_reevaluation": false,
+      "quant_tier": "conditional",
+      "gold": "approve",
+      "reference_gold": null,
+      "status": "ok",
+      "error": null,
+      "attempts": 1,
+      "predicted": "approve",
+      "correct": true,
+      "reference_correct": null,
+      "adjustment": "True/upgrade",
+      "quant_tier_observed": "conditional",
+      "approved_amount_krw": 21575,
+      "amount_matches_expected": true,
+      "critic_verdict": "approve",
+      "critic_reasoning": "1차 판정은 정책 1.2절의 정성 조정 규정에 따라 'conditional' 등급을 'approve'로 타당하게 상향 조정하였습니다. 10년간 장기 운영에 따른 계절적 비수기 요인이 명확히 확인되어 정책 위반 사항 없이 적절히 처리되었습니다.",
+      "decision_reasoning": "신청자 ID 78325의 정량 모델 예측 부도확률은 61.81%로 정량 등급 'conditional(조건부승인)'에 해당합니다. 정성 요약 및 사업 설명 검토 결과, 10년간 장기 운영해온 빙수·음료 카페로서 겨울철 매출 감소는 매년 반복되는 계절적 비수기에 기인한 통제 가능한 감소 사유임이 확인되었습니다. 정책 1.2절의 정성 조정 규정에 따라 계절적 비수기 등 통제 가능한 감소 사유가 인정되므로 최종 판정을 'approve(승인)'로 상향 조정합니다. 참고한 정책은 대출 정책 문서 제1.1절 및 제1.2절입니다.",
+      "policy_citations": [
+        "1. 승인 등급 기준",
+        "2. 업종별 유의사항",
+        "5. 리스크 등급별 사후 관리"
+      ],
+      "tool_call_summary": "get_applicant_data → predict_risk → explain_prediction → summarize_business → retrieve_policy → record_decision → critic_review(Critic)",
+      "unnecessary_tool_calls": [],
+      "repayment_tool_called": false,
+      "expected_policy_section": "1",
+      "citation_retrieved": true,
+      "citation_in_rationale": true,
+      "model_versions": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    {
+      "case_id": "HO2-CIT-08",
+      "category": "reject_lock",
+      "source": "holdout_cit_v1",
+      "ambiguous": false,
+      "is_reevaluation": false,
+      "quant_tier": "reject",
+      "gold": "reject",
+      "reference_gold": null,
+      "status": "ok",
+      "error": null,
+      "attempts": 1,
+      "predicted": "reject",
+      "correct": true,
+      "reference_correct": null,
+      "adjustment": "False/none",
+      "quant_tier_observed": "reject",
+      "approved_amount_krw": 0,
+      "amount_matches_expected": true,
+      "critic_verdict": "approve",
+      "critic_reasoning": "1차 심사 에이전트가 정책과 정량 기준을 올바르게 적용하였습니다.",
+      "decision_reasoning": "신청자 190011의 예측 부도확률은 66.36%로 정량 기준 62.6% 이상에 해당하여 정량 등급 'reject'로 판정되었습니다. 정책 제1.2절에 따르면 정량 등급이 'reject'인 건은 정성 조정으로 상향할 수 없습니다. 따라서 최종 판정은 'reject'로 확정되며, 사업 설명에 기재된 일부 긍정적 요소에도 불구하고 모델의 높은 부도 확률과 정책 규정에 따라 거절 조치합니다.",
+      "policy_citations": [
+        "1. 승인 등급 기준",
+        "2. 업종별 유의사항",
+        "5. 리스크 등급별 사후 관리"
+      ],
+      "tool_call_summary": "get_applicant_data → predict_risk → explain_prediction → summarize_business → retrieve_policy → record_decision → critic_review(Critic)",
+      "unnecessary_tool_calls": [],
+      "repayment_tool_called": false,
+      "expected_policy_section": "1",
+      "citation_retrieved": true,
+      "citation_in_rationale": true,
+      "model_versions": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    {
+      "case_id": "HO2-CIT-09",
+      "category": "downgrade",
+      "source": "holdout_cit_v1",
+      "ambiguous": false,
+      "is_reevaluation": false,
+      "quant_tier": "approve",
+      "gold": "conditional",
+      "reference_gold": null,
+      "status": "ok",
+      "error": null,
+      "attempts": 1,
+      "predicted": "conditional",
+      "correct": true,
+      "reference_correct": null,
+      "adjustment": "True/downgrade",
+      "quant_tier_observed": "approve",
+      "approved_amount_krw": 174334,
+      "amount_matches_expected": true,
+      "critic_verdict": "approve",
+      "critic_reasoning": "1차 심사 에이전트의 판정은 정책 1.2절의 정성 조정 규정을 정확히 준수하였습니다. 부도확률 57.71%로 정량적 승인 대상이나 폐업 임박 위험 신호로 인해 조건부승인으로 하향 조정한 것은 타당하므로 동의합니다.",
+      "decision_reasoning": "신청자의 모델 예측 부도확률은 57.71%로 정량 등급은 'approve'이나, 사업 설명 요약에서 고령으로 인한 이번 달 내 폐업 예정이라는 명백한 폐업 임박 위험 신호가 확인되었습니다. 정책 1.2절의 정성 조정 규정에 따라 존속 가능성의 부정적 신호가 있는 경우 'conditional'로 하향 조정하도록 규정되어 있습니다. 따라서 최종 판정은 조건부승인(conditional)으로 결정합니다.",
+      "policy_citations": [
+        "1. 승인 등급 기준",
+        "2. 업종별 유의사항",
+        "3. 대출 한도 및 조건"
+      ],
+      "tool_call_summary": "get_applicant_data → predict_risk → explain_prediction → summarize_business → retrieve_policy → record_decision → critic_review(Critic)",
+      "unnecessary_tool_calls": [],
+      "repayment_tool_called": false,
+      "expected_policy_section": "1",
+      "citation_retrieved": true,
+      "citation_in_rationale": true,
+      "model_versions": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    {
+      "case_id": "HO2-CIT-10",
+      "category": "upgrade",
+      "source": "holdout_cit_v1",
+      "ambiguous": false,
+      "is_reevaluation": false,
+      "quant_tier": "conditional",
+      "gold": "approve",
+      "reference_gold": null,
+      "status": "ok",
+      "error": null,
+      "attempts": 1,
+      "predicted": "approve",
+      "correct": true,
+      "reference_correct": null,
+      "adjustment": "True/upgrade",
+      "quant_tier_observed": "conditional",
+      "approved_amount_krw": 206349,
+      "amount_matches_expected": true,
+      "critic_verdict": "approve",
+      "critic_reasoning": "1차 심사 에이전트의 판정은 정책 조항 1.1절(부도확률 59.3%로 조건부승인 해당) 및 1.2절(최근 3개월 연속 매출 증가 시 승인으로 상향 가능)에 정확히 부합합니다. 정량 등급이 조건부승인이므로 상향 조정 대상이 되며, 정책 위반 사항이나 모순이 발견되지 않아 타당합니다.",
+      "decision_reasoning": "신청자의 정량 예측 부도확률은 59.29%로 산출되어 'conditional(조건부승인)' 등급을 받았으나, 사업 설명 및 정성 요약 결과 최근 3개월 연속 매출 증가 추세가 확인되었습니다. 이는 대출 정책 1.2절의 상향 조정 요건인 '최근 3개월 이상 매출 증가'에 해당하여 'approve(승인)'로 상향 조정하였습니다. 추가적인 폐업 임박이나 임대 문제 등 주요 리스크 신호는 발견되지 않았습니다. 따라서 본 대출 건은 최종적으로 승인 처리합니다.",
+      "policy_citations": [
+        "1. 승인 등급 기준",
+        "2. 업종별 유의사항",
+        "5. 리스크 등급별 사후 관리"
+      ],
+      "tool_call_summary": "get_applicant_data → predict_risk → explain_prediction → summarize_business → retrieve_policy → record_decision → critic_review(Critic)",
+      "unnecessary_tool_calls": [],
+      "repayment_tool_called": false,
+      "expected_policy_section": "1",
+      "citation_retrieved": true,
+      "citation_in_rationale": true,
+      "model_versions": [
+        "gemini-3.5-flash-lite"
+      ]
+    }
+  ]
+}

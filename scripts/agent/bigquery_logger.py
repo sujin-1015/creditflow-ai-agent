@@ -252,7 +252,12 @@ def already_reevaluated(applicant_id: int) -> bool:
 
 
 def find_due_conditionals(min_days: int = 90) -> list[dict]:
-    """min_days 이상 지난 conditional 판정 중 아직 재심사 안 한 건을 찾는다."""
+    """min_days 이상 지난 conditional 판정 중 아직 재심사 안 한 건을 찾는다.
+
+    status='EXECUTED'만 대상이다 — 의도된 동작이다. Critic 반박으로 HELD된 conditional 건은 최초
+    50%가 실제로 집행된 적이 없어 "잔여 50%를 재심사 후 집행"할 전제 자체가 없고, 사람이 보류를
+    검토하기 전에 자동 재심사로 그 건이 우회 승인되는 경로를 만들지 않기 위해서이기도 하다.
+    """
     ensure_table()
     ensure_reeval_table()
     client = get_client()
@@ -309,7 +314,12 @@ def delete_repayment(applicant_id: int, timestamp_iso: str) -> dict:
 
 
 def find_recent_execution(applicant_id: int, min_minutes: int = 10) -> dict | None:
-    """최근 min_minutes 이내 같은 신청자의 EXECUTED 레코드가 있으면 반환한다 (/underwrite idempotency 가드용).
+    """최근 min_minutes 이내 같은 신청자의 EXECUTED 또는 HELD 레코드가 있으면 반환한다 (/underwrite idempotency 가드용).
+
+    HELD도 포함하는 이유: Critic은 LLM 호출이라 같은 신청자를 바로 다시 심사하면 결과가 달라질 수
+    있다. HELD를 가드에서 빼면 "반박당하면 다시 눌러서 이번엔 Critic이 통과시키면 집행"되는 재시도
+    우회로가 생기고, 사람 검토 대기열에 같은 건이 중복으로 쌓이며 Gemini 호출도 낭비된다.
+    윈도우(기본 10분)가 지나면 재심사 가능하다 — 중복 클릭/재시도 방지용이지 보류 해제 장치가 아니다.
 
     BigQuery 스트리밍 버퍼 지연 때문에 완벽한 락은 아니다 — 방금 insert된 행이 아직 쿼리에
     안 잡히는 짧은 race window가 있을 수 있음 (best-effort 가드).
@@ -320,7 +330,7 @@ def find_recent_execution(applicant_id: int, min_minutes: int = 10) -> dict | No
         SELECT *
         FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`
         WHERE applicant_id = @applicant_id
-          AND status = 'EXECUTED'
+          AND status IN ('EXECUTED', 'HELD')
           AND TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), timestamp, MINUTE) < @min_minutes
         ORDER BY timestamp DESC
         LIMIT 1
@@ -337,6 +347,7 @@ def find_recent_execution(applicant_id: int, min_minutes: int = 10) -> dict | No
 
 def get_today_disbursed_total_krw() -> int:
     """오늘(UTC 기준) 이미 실행(EXECUTED)된 대출 집행액 합계(KRW)를 조회한다.
+    HELD(Critic 반박 보류)/SKIPPED는 돈이 나가지 않았으므로 의도적으로 제외한다 (status='EXECUTED'만 합산).
 
     payment_mock.py의 일별 하드 캡 체크에 쓰인다 — 정책 문서에만 있는 숫자가 아니라
     실제 집행 계층에서 강제되는 자금 통제(운영 안전장치, 정책 6항 참고).

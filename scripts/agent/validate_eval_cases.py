@@ -135,7 +135,7 @@ def main() -> int:
         if n > 1:
             err(f"case_id 중복: {cid}")
     legacy = [c for c in cases if c["source"] == "legacy_v1"]
-    new = [c for c in cases if c["source"] in ("v2_new", "holdout_v1")]
+    new = [c for c in cases if c["source"] == "v2_new" or c["source"].startswith("holdout")]
     legacy_aids = {c["applicant_id"] for c in legacy}
     new_aids = Counter(c["applicant_id"] for c in new)
     for aid, n in new_aids.items():
@@ -221,6 +221,9 @@ def main() -> int:
     if holdout:
         v2 = json.loads(CASES_PATH.read_text(encoding="utf-8"))
         v2_aids = {c["applicant_id"] for c in v2["cases"]}
+        other = AGENT_DIR / "eval_cases_holdout_v1.json"
+        if other.exists() and Path(args.cases).resolve() != other.resolve():
+            v2_aids |= {c["applicant_id"] for c in json.loads(other.read_text(encoding="utf-8"))["cases"]}
         for c in new:
             if c["applicant_id"] in v2_aids:
                 err(f"{c['case_id']}: 홀드아웃 신청자가 v2와 겹침")
