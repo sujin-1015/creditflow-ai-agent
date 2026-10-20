@@ -80,6 +80,7 @@ CreditFlow AI Agent가 다루는 모든 데이터 자산(원본 → 전처리 �
 | `threshold_config.json` | `t_approve`(0.5877), `t_reject`(0.6264) — validation set에서 승인군 부도율 8% 이하·거절군 20% 이상 제약을 만족하도록 산정. `approve_bad_rate`/`reject_bad_rate`/`constraint_used`에 근거 수치 기록 |
 | `metrics_report.json` | Test AUC 등 전체 성능 지표 |
 | `kfold_cv_report.json` | 5-fold 교차검증 결과(AUC 재현성 확인) |
+| `baseline_comparison_report.json` | 로지스틱 회귀 베이스라인과 XGBoost/LightGBM 비교(val/test AUC, 5-fold CV, test AUC 차이의 부트스트랩 구간, 거절 티어 Precision/Recall, LR 표준화 계수) |
 | `model_report.md` | 위 지표를 사람이 읽을 수 있게 정리한 리포트 |
 
 `quant_tier`(정량 등급) 판정 규칙: `default_probability < t_approve` → approve,

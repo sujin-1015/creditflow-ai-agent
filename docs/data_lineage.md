@@ -78,6 +78,7 @@ train에 없던 카테고리는 `global_mean`으로 대체된다.
 
 - `processed/train.csv`로 XGBoost/LightGBM을 학습, `processed/val.csv`로 임계값(`t_approve`, `t_reject`)을 산정한다.
 - `scripts/kfold_cv.py`가 `StratifiedKFold`(5-fold)로 AUC 재현성을 별도 검증(`models/kfold_cv_report.json`).
+- `scripts/baseline_comparison.py`가 같은 split·피처로 로지스틱 회귀 베이스라인을 학습해 XGBoost/LightGBM과 비교(`models/baseline_comparison_report.json`). 서빙 모델·임계값·`metrics_report.json`은 건드리지 않는다.
 - 최종 산출물: `models/xgboost_model.joblib`, `models/threshold_config.json`, `models/metrics_report.json`.
 - 서빙 시점에는 `data_tools._load_state()`가 `train`+`val`+`test`를 합쳐(`_all_rows`) `applicant_id`로 행을 조회한다 —
   즉 런타임 조회는 원본 CSV가 아니라 **전처리 완료된 `processed/*.csv`**를 소스로 쓴다.

@@ -220,6 +220,7 @@ flowchart TB
 scripts/
   preprocess.py          # Kaggle 원본 데이터 → 전처리 (train/val/test 분할)
   train_model.py         # XGBoost/LightGBM 학습, 임계값 산정
+  baseline_comparison.py # 로지스틱 회귀 베이스라인과 XGBoost/LightGBM 비교 (val/test AUC, 5-fold CV, 거절 티어 성능)
   visualize_results.py   # 성능지표 시각화 (models/figures/)
   devnet_transfer.py     # Solana devnet 지갑/USDC 전송 + Memo 저수준 함수
   payment_mock.py        # 판정 결과에 따른 devnet 집행 로직
@@ -352,6 +353,7 @@ curl -s -X POST -d "{}" https://creditflow-agent-46585987317.asia-northeast3.run
 ## 성능지표
 
 - Test AUC: **0.7883** (XGBoost)
+- 모델 비교(같은 split·피처·시드, `scripts/baseline_comparison.py`): Val AUC는 XGBoost 0.7846 · LightGBM 0.7794 · 로지스틱 회귀 0.6309이고, Test AUC는 각각 0.7883 · 0.7835 · 0.6286이다. 5-fold CV 평균 AUC는 0.7848 · 0.7811 · 0.6327이다. 로지스틱 회귀(표준화, `class_weight=balanced`, 규제 강도 C만 val AUC로 선택)와는 AUC 차이가 약 0.16(test 부트스트랩 95% 구간 +0.153~+0.166)으로 커서, 이 데이터에서는 비선형·상호작용을 잡는 트리 모델이 필요했다. XGBoost와 LightGBM의 차이는 +0.0048(95% 구간 +0.0025~+0.0068)로 작고, XGBoost·LightGBM은 하이퍼파라미터를 튜닝하지 않았다. 같은 임계값 탐색으로 만든 거절 티어의 Precision/Recall은 XGBoost 43.7%/35.7%, 로지스틱 회귀 19.9%/31.8%였다. 결과: `models/baseline_comparison_report.json`
 - 등급별 실제 부도율(test): 승인 7.66% · 조건부승인 28.09% · 거절 43.66% (단조 증가 확인)
 - 상세 수치와 차트: `models/metrics_report.json`, `models/figures/`
 
