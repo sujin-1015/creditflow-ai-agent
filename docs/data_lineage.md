@@ -109,12 +109,16 @@ train에 없던 카테고리는 `global_mean`으로 대체된다.
 2. 승인/조건부승인 시 `approved_amount_krw`는 `annual_revenue_krw`(원본 → 전처리 파생) 기준으로
    서버가 계산(`LOAN_RATE=5%`, `LOAN_CAP_KRW=5,000,000`) — 모델이 임의 금액을 만들어낼 수 없다.
 3. Critic Agent가 별도 Gemini 호출(mode=ANY, 강제 function calling)로 1차 판정을 재검토해
-   `critic_verdict`/`critic_reasoning`을 반환.
+   `critic_verdict`/`critic_reasoning`을 반환. 반박(`reject`)이면 이후 `payment_mock`이 집행을
+   보류(`status=HELD`)한다 (`final_decision`은 불변).
 4. 이 시점까지의 모든 근거(`quant`, `explanation`, `biz_summary`, `policy_hits`, `tool_call_log`,
    `critic_result`)가 `FinalDecisionResult`(메모리 내 dataclass)로 합쳐진다.
 
 ### 2.6 판정 → 온체인 집행 → 영구 기록 (`payment_mock.py`, `devnet_transfer.py`, `bigquery_logger.py`)
 
+0. **Critic 보류 분기** (`disburse_loan`/`disburse_remaining`): 승인·조건부승인이어도 `critic_verdict`가
+   명시적 `approve`가 아니면(반박·누락·예상 밖 값) 하드캡 체크보다 먼저 `status=HELD`로 기록만 하고
+   끝낸다 — 하드캡 체크, 지갑 조회/발급, 송금, 메모 기록 모두 없음.
 1. **하드캡 체크** (`_check_hard_caps`): 판정 로직과 독립적으로, 지갑 조회/발급보다 먼저 건별
    500만원·일별 2,000만원 한도를 강제. 초과 시 `FundControlError`로 즉시 중단 — 이 시점 이후의
    어떤 데이터도 생성되지 않는다(지갑 파일도 만들어지지 않음).
@@ -133,12 +137,14 @@ train에 없던 카테고리는 `global_mean`으로 대체된다.
 1. Cloud Scheduler(매일 03:00 KST)가 `POST /jobs/reevaluate-due`를 호출.
 2. `bigquery_logger.find_due_conditionals`가 `loan_decisions`에서 `decision='conditional'`,
    `status='EXECUTED'`, 90일 경과, 아직 `reevaluations`에 없는 건을 조회(범용 쿼리 — 특정
-   신청자에 종속되지 않음).
+   신청자에 종속되지 않음). Critic 반박으로 `HELD`된 조건부 건은 최초 50%가 집행된 적이 없고
+   사람 검토 전이므로 의도적으로 대상에서 제외된다.
 3. 실제 재심사 처리(합성 후속 텍스트 준비된 신청자 61059 한정, PoC 범위)는 `make_final_decision`을
    `is_reevaluation=True`로 다시 호출 — 이때 `get_repayment_history_tool`이 `repayments` 테이블을
    추가로 참고한다.
 4. 결과는 `reevaluations` 테이블에 적재되고, 승인 상향 시 잔여 50%가 동일한 하드캡 검증을 거쳐
-   추가 집행된다.
+   추가 집행된다. 단, 재심사 결과를 Critic이 반박하면 잔여분은 보내지 않고 `loan_decisions`에
+   `HELD`로만 기록한다 (`reevaluations`에는 status 컬럼이 없어 `tx_signature`가 없는 상향 건으로 구분).
 
 ### 2.8 상환 (`payment_mock.collect_repayment`)
 

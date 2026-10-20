@@ -13,6 +13,7 @@ flowchart TB
 
     HardCap{"하드 캡 체크<br/>건별 500만원 / 일별 2천만원<br/>(payment_mock._check_hard_caps)"}
     Blocked["집행 차단<br/>(FundControlError — 판정 결과와 무관하게 즉시 중단)"]
+    Held["집행 보류 (status=HELD)<br/>지갑·송금·하드 캡 없음 · 판정/근거/Critic 반박만 기록<br/>사람 검토 대상 (자동 재판정 없음)"]
 
     subgraph Chain["Solana devnet"]
         Wallet["임베디드 지갑<br/>(없으면 자동 발급, 시드구문 불필요)"]
@@ -34,12 +35,14 @@ flowchart TB
     API <--> FS
     API --> Decision --> Critic
     Critic --> API
-    API -->|승인/조건부승인| HardCap
+    API -->|승인/조건부승인 + Critic 승인| HardCap
+    API -->|승인/조건부승인 + Critic 반박| Held
     HardCap -->|한도 이내| Wallet --> Transfer
     HardCap -->|한도 초과| Blocked
     API -->|상환 실행| Repay
-    API -->|재심사 상향 시 잔여집행 — 하드캡 미적용| Transfer
+    API -->|재심사 상향 + Critic 승인 시 잔여집행 — 하드캡 적용| HardCap
     Transfer --> BQ
+    Held -->|HELD 기록| BQ
     Repay -->|상환 이력 기록| BQ
     BQ -.->|get_repayment_history_tool: 재심사 시 참고| Decision
     API --> BQ

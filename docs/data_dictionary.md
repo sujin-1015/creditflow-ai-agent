@@ -102,8 +102,8 @@ CreditFlow AI Agent가 다루는 모든 데이터 자산(원본 → 전처리 �
 | `devnet_test_amount_sol` | FLOAT | | **레거시** — SOL 정산 시절 기록, 하위호환용 (신규 로직 미사용) |
 | `devnet_test_amount` | FLOAT | | USDC 전환 이후 실제 집행 금액 |
 | `currency` | STRING | | 통화 단위 (예: `USDC`) |
-| `status` | STRING | | 집행 상태: `EXECUTED` / `SKIPPED` 등 |
-| `tx_signature` | STRING | | Solana 트랜잭션 서명. 미집행(거절) 건은 null |
+| `status` | STRING | | 집행 상태: `EXECUTED`(집행됨) / `SKIPPED`(거절이라 집행 안 함) / `HELD`(승인·조건부승인이지만 Critic 반박으로 집행 보류 — 송금·지갑 발급 없음, 사람 검토 대상). 일별 누적 집행액·idempotency 가드·재심사 대상 조회 등 `EXECUTED` 기준 집계에는 `HELD`가 들어가지 않는다 (idempotency 가드만 `HELD`도 포함) |
+| `tx_signature` | STRING | | Solana 트랜잭션 서명. 미집행(거절·보류) 건은 null |
 | `explorer_url` | STRING | | 트랜잭션 탐색기 URL |
 | `network` | STRING | | 예: `solana-devnet-mock` |
 | `is_mock` | BOOLEAN | | mock 집행 여부 |

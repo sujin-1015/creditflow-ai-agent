@@ -33,7 +33,12 @@ FOLLOWUP_BUSINESS_UPDATES: dict[int, str] = {
 
 
 def reevaluate(applicant_id: int, followup_text: str | None = None) -> dict:
-    """조건부 건 하나를 재심사한다. 승인으로 상향되면 잔여 50%를 즉시 집행한다."""
+    """조건부 건 하나를 재심사한다. 승인으로 상향되면 잔여 50%를 즉시 집행한다.
+
+    단, 재심사 결과를 Critic이 반박하면 잔여분은 집행하지 않고 HELD로 기록만 한다 (자동 재판정 없음).
+    반환 dict의 "status"는 상향된 경우에만 채워진다 ("EXECUTED" | "HELD"); BigQuery reevaluations
+    스키마에는 status 컬럼이 없어 저장되지 않고(스키마 변경 회피), loan_decisions 행에 HELD로 남는다.
+    """
     followup_text = followup_text or FOLLOWUP_BUSINESS_UPDATES.get(applicant_id)
     if followup_text is None:
         raise ValueError(f"applicant_id {applicant_id}에 대한 후속 텍스트가 없습니다.")
@@ -59,16 +64,28 @@ def reevaluate(applicant_id: int, followup_text: str | None = None) -> dict:
         "critic_reasoning": new_result.critic_reasoning,
         "tool_call_summary": new_result.tool_call_summary,
         "reevaluated_at": datetime.now(timezone.utc).isoformat(),
+        "status": None,
     }
 
     if upgraded:
-        wallet_address = _get_wallet(applicant_id)
         payment_rationale = f"[재심사 상향] {new_result.decision_reasoning}"
+        if payment_mock.should_hold_for_critic(new_result.critic_verdict):
+            # Critic이 재심사 결과를 반박(또는 결과 누락)했으면 잔여 50%를 보내지 않는다.
+            # 지갑 조회/발급도 하지 않는다 (HELD는 돈도 지갑도 건드리지 않는 기록 전용 상태).
+            # new_decision/upgraded는 Decision Agent의 판정 그대로 두고(final_decision은 불변),
+            # 보류 여부는 tx_signature 없음 + critic_verdict로 구분한다 (대시보드가 같은 기준으로 표시).
+            payment_wallet = None
+            payment_rationale = f"[재심사 상향 — Critic 반박으로 잔여분 집행 보류] {new_result.decision_reasoning}"
+        else:
+            payment_wallet = _get_wallet(applicant_id)
         payment_result = payment_mock.disburse_remaining(
             applicant_id=applicant_id,
-            wallet_address=wallet_address,
+            wallet_address=payment_wallet,
             rationale=payment_rationale,
             requested_loan_krw=new_result.approved_amount_krw,
+            critic_verdict=new_result.critic_verdict,
+            critic_reasoning=new_result.critic_reasoning,
+            tool_call_summary=new_result.tool_call_summary,
         )
         # 해시가 온체인 메모와 대조 가능하도록, 실제로 해시/서명한 문자열로 rationale을 맞춘다.
         reeval_record["rationale"] = payment_rationale
@@ -76,6 +93,7 @@ def reevaluate(applicant_id: int, followup_text: str | None = None) -> dict:
         reeval_record["additional_amount"] = payment_result.devnet_test_amount
         reeval_record["tx_signature"] = payment_result.tx_signature
         reeval_record["explorer_url"] = payment_result.explorer_url
+        reeval_record["status"] = payment_result.status
 
     bigquery_logger.log_reevaluation(reeval_record)
     return reeval_record
@@ -105,7 +123,9 @@ if __name__ == "__main__":
     print(f"신청자: {result['applicant_id']}")
     print(f"기존 판정: {result['original_decision']} -> 새 판정: {result['new_decision']}")
     print(f"상향 여부: {result['upgraded']}")
-    if result["upgraded"]:
+    if result["upgraded"] and result["status"] == "HELD":
+        print("Critic 반박으로 잔여분 집행 보류 (HELD) — 사람 검토 필요")
+    elif result["upgraded"]:
         print(f"잔여 집행액: {result['additional_amount']} {result['currency']}")
         print(f"tx: {result['tx_signature']}")
         print(f"explorer: {result['explorer_url']}")

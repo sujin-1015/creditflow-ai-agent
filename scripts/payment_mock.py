@@ -71,7 +71,7 @@ class PaymentResult:
     requested_loan_krw: int
     devnet_test_amount: float
     currency: str
-    status: str  # "EXECUTED" | "SKIPPED"
+    status: str  # "EXECUTED" | "SKIPPED" | "HELD" (Critic 반박으로 집행 보류 — 사람 검토 대상)
     tx_signature: Optional[str]
     network: str
     is_mock: bool
@@ -191,6 +191,54 @@ HARD_CAP_DEMO_SCENARIOS = {
 HARD_CAP_DEMO_APPLICANT_ID = 999999
 
 
+def should_hold_for_critic(critic_verdict: Optional[str]) -> bool:
+    """Critic이 명시적으로 "approve"하지 않았으면 집행을 보류해야 하는지 판단한다.
+
+    "approve가 명시적으로 아니면 보류" (fail-closed) 정책이다 — "reject"뿐 아니라 None/빈 문자열/
+    예상 밖 값도 보류한다. 돈이 나가는 쪽은 되돌릴 수 없으므로, Critic 결과가 누락되거나
+    깨졌을 때 "검토를 못 받았는데 그냥 집행"되는 쪽이 더 위험하다고 봤다. 보류는 사람이 풀 수
+    있는 상태지만 잘못된 송금은 되돌릴 수 없다. 단, critic_verdict를 안 넘기는 구 호출부
+    (run_payment_demo.py 등 Critic 단계가 없는 스크립트)도 이제 보류되므로, 그런 호출부는
+    Critic을 거친 값을 넘겨야 집행된다.
+    """
+    return critic_verdict != "approve"
+
+
+def _held_result(
+    applicant_id: int,
+    decision: str,
+    wallet_address: Optional[str],
+    requested_loan_krw: int,
+    rationale: str,
+    r_hash: str,
+    now: str,
+    critic_verdict: Optional[str],
+    critic_reasoning: Optional[str],
+    tool_call_summary: Optional[str],
+) -> PaymentResult:
+    """Critic 반박으로 보류된 건의 기록. 거절(SKIPPED)과 같은 방식 — 지갑 조회/발급, 하드 캡 체크,
+    송금, 메모 기록을 전혀 하지 않고 판정 근거와 Critic 의견만 남긴다."""
+    return PaymentResult(
+        applicant_id=applicant_id,
+        decision=decision,
+        wallet_address=wallet_address,
+        requested_loan_krw=requested_loan_krw,
+        devnet_test_amount=0.0,
+        currency=CURRENCY,
+        status="HELD",
+        tx_signature=None,
+        network="solana-devnet-mock" if MOCK_MODE else "solana-devnet",
+        is_mock=MOCK_MODE,
+        timestamp=now,
+        rationale=rationale,
+        rationale_hash=r_hash,
+        explorer_url=None,
+        critic_verdict=critic_verdict,
+        critic_reasoning=critic_reasoning,
+        tool_call_summary=tool_call_summary,
+    )
+
+
 def disburse_loan(
     applicant_id: int,
     decision: str,
@@ -208,12 +256,22 @@ def disburse_loan(
     조건부승인 -> 위와 동일한 지갑 확인/발급 후, 정책 3항에 따라 50%(0.50 USDC)만 우선
         집행 (잔여분은 재심사 후 결정).
     거절 -> 지갑을 조회/발급하지 않고, 트랜잭션 없이 판정 근거만 기록.
+    승인/조건부승인이어도 Critic이 명시적으로 approve하지 않았으면(반박 또는 결과 누락) -> HELD:
+        거절과 마찬가지로 하드 캡 체크·지갑 조회/발급·송금·메모 기록을 전혀 하지 않고, 판정 근거와
+        Critic 의견만 기록해 사람이 검토하게 한다 (자동 재판정은 없다). final_decision 자체는 바뀌지 않는다.
     """
     now = datetime.now(timezone.utc).isoformat()
     r_hash = _rationale_hash(rationale)
     wallet_newly_issued = False
 
-    if decision in ("approve", "conditional"):
+    if decision in ("approve", "conditional") and should_hold_for_critic(critic_verdict):
+        # 하드 캡보다 앞에서 처리한다 — 보류 건은 돈이 나가지 않으므로 캡 대상이 아니다
+        # (캡 초과 + Critic 반박이어도 FundControlError가 아니라 HELD로 기록된다).
+        result = _held_result(
+            applicant_id, decision, wallet_address, requested_loan_krw, rationale, r_hash, now,
+            critic_verdict, critic_reasoning, tool_call_summary,
+        )
+    elif decision in ("approve", "conditional"):
         _check_hard_caps(applicant_id, requested_loan_krw)
 
         if wallet_address is None:
@@ -276,20 +334,37 @@ def disburse_loan(
 
 def disburse_remaining(
     applicant_id: int,
-    wallet_address: str,
+    wallet_address: Optional[str],
     rationale: str,
     requested_loan_krw: int,
+    critic_verdict: Optional[str] = None,
+    critic_reasoning: Optional[str] = None,
+    tool_call_summary: Optional[str] = None,
 ) -> PaymentResult:
     """재심사에서 조건부->승인으로 상향된 건의 잔여 50%(0.50 USDC)를 집행한다.
 
     최초 집행(disburse_loan)과 동일하게 하드 캡을 적용한다 — 이전엔 이 경로만 캡 체크가
     빠져있어서, 판정 결과와 무관하게 즉시 중단한다는 안전장치가 이 경로엔 적용 안 되는
     구멍이 있었다.
-    """
-    _check_hard_caps(applicant_id, requested_loan_krw)
 
+    재심사 결과에 대한 Critic이 명시적으로 approve하지 않았으면 disburse_loan과 같은 규칙으로
+    잔여분을 보내지 않고 HELD로만 기록한다 (하드 캡보다 앞에서 처리). 호출부는 critic_verdict를
+    반드시 넘겨야 한다 — 보류 시 wallet_address는 None이어도 된다. 기본값 None은 보류로 취급되므로, 빠뜨리면 집행되지 않는 쪽(fail-closed)으로 동작한다.
+    """
     now = datetime.now(timezone.utc).isoformat()
     r_hash = _rationale_hash(rationale)
+
+    if should_hold_for_critic(critic_verdict):
+        result = _held_result(
+            applicant_id, "approve", wallet_address, 0, rationale, r_hash, now,
+            critic_verdict, critic_reasoning, tool_call_summary,
+        )
+        # requested_loan_krw=0은 EXECUTED 잔여분 기록과 동일한 관례 (아래 주석 참고).
+        _append_log(result)
+        return result
+
+    _check_hard_caps(applicant_id, requested_loan_krw)
+
     memo = _build_memo(applicant_id, "approve", r_hash)
     tx_signature, explorer_url = _execute_transfer(
         wallet_address, CONDITIONAL_AMOUNT_USDC, memo=memo
@@ -309,6 +384,9 @@ def disburse_remaining(
         rationale=rationale,
         rationale_hash=r_hash,
         explorer_url=explorer_url,
+        critic_verdict=critic_verdict,
+        critic_reasoning=critic_reasoning,
+        tool_call_summary=tool_call_summary,
     )
     _append_log(result)
     return result
