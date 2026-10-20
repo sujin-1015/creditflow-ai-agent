@@ -1,0 +1,161 @@
+{
+  "selection_rule": "val AUC로 LR의 C만 선택. XGBoost/LightGBM은 train_model.py 고정 하이퍼파라미터(튜닝 안 함). test는 최종 평가 전용.",
+  "logistic_regression_config": {
+    "preprocessing": "StandardScaler",
+    "class_weight": "balanced",
+    "penalty": "l2",
+    "C_grid_val_auc": {
+      "0.001": 0.630947207229136,
+      "0.01": 0.6309297207413085,
+      "0.1": 0.6309270799247794,
+      "1.0": 0.630926547868378,
+      "10.0": 0.630926547868378
+    },
+    "selected_C": 0.001
+  },
+  "results": {
+    "xgboost": {
+      "val_auc": 0.7846224851226811,
+      "test_auc": 0.7882875525065278,
+      "tiers": {
+        "thresholds": {
+          "t_approve": 0.5877197742462158,
+          "t_reject": 0.6263755917549133,
+          "relaxation_step": 0
+        },
+        "test_tier_bad_rate": {
+          "approve": 0.07658050451572719,
+          "conditional": 0.2809346787041954,
+          "reject": 0.43656422379826637
+        },
+        "test_tier_share": {
+          "approve": 0.8494708994708995,
+          "conditional": 0.04981481481481481,
+          "reject": 0.10071428571428571
+        },
+        "reject_precision": 0.43656422379826637,
+        "reject_recall": 0.3574193548387097
+      }
+    },
+    "lightgbm": {
+      "val_auc": 0.7794055098943381,
+      "test_auc": 0.7835058953275272,
+      "tiers": {
+        "thresholds": {
+          "t_approve": 0.5916229694091485,
+          "t_reject": 0.6267149682779126,
+          "relaxation_step": 0
+        },
+        "test_tier_bad_rate": {
+          "approve": 0.07785585473540203,
+          "conditional": 0.2504145936981758,
+          "reject": 0.44215199791068166
+        },
+        "test_tier_share": {
+          "approve": 0.8508465608465609,
+          "conditional": 0.047857142857142855,
+          "reject": 0.1012962962962963
+        },
+        "reject_precision": 0.44215199791068166,
+        "reject_recall": 0.36408602150537633
+      }
+    },
+    "logistic_regression": {
+      "val_auc": 0.630947207229136,
+      "test_auc": 0.628587936878639,
+      "tiers": {
+        "thresholds": {
+          "t_approve": 0.45969615308757505,
+          "t_reject": 0.572069372025337,
+          "relaxation_step": 0
+        },
+        "test_tier_bad_rate": {
+          "approve": 0.07876230661040788,
+          "conditional": 0.13717246039492453,
+          "reject": 0.1994067682351355
+        },
+        "test_tier_share": {
+          "approve": 0.4514285714285714,
+          "conditional": 0.35235449735449736,
+          "reject": 0.1962169312169312
+        },
+        "reject_precision": 0.1994067682351355,
+        "reject_recall": 0.31806451612903225
+      }
+    }
+  },
+  "test_auc_difference_bootstrap": {
+    "xgboost_minus_lightgbm": {
+      "mean_diff": 0.004760442236252191,
+      "ci95": [
+        0.0024911933068079454,
+        0.0068312286081929205
+      ],
+      "n_boot": 500
+    },
+    "xgboost_minus_logistic_regression": {
+      "mean_diff": 0.15962608021128047,
+      "ci95": [
+        0.15289914335871632,
+        0.16602343768403696
+      ],
+      "n_boot": 500
+    }
+  },
+  "kfold_cv": {
+    "n_splits": 5,
+    "xgboost": {
+      "fold_aucs": [
+        0.7834434735804992,
+        0.7843530787525386,
+        0.7863320314681354,
+        0.7847484207587843,
+        0.7849051787392252
+      ],
+      "mean": 0.7847564366598364,
+      "std": 0.0010477663277028446
+    },
+    "lightgbm": {
+      "fold_aucs": [
+        0.781955993650562,
+        0.7793011794778912,
+        0.7822433240715152,
+        0.781999880592112,
+        0.7801520181610062
+      ],
+      "mean": 0.7811304791906173,
+      "std": 0.0013209352818066707
+    },
+    "logistic_regression": {
+      "fold_aucs": [
+        0.6311009487666035,
+        0.6310585420218048,
+        0.6392949892310822,
+        0.6325230568847054,
+        0.6292922556378868
+      ],
+      "mean": 0.6326539585084165,
+      "std": 0.00388518543663381
+    }
+  },
+  "logistic_regression_standardized_coefficients": {
+    "biz_city_risk_te": 0.4084113629911433,
+    "industry_sector_risk_te": 0.13405962321071088,
+    "career_years": -0.09314967664905222,
+    "income_log": -0.0819405394578387,
+    "is_married": -0.0646525022467168,
+    "has_car": -0.056390296363089995,
+    "biz_premise_ownership_rented": 0.04524165454361947,
+    "biz_premise_ownership_owned": -0.04315927507190165,
+    "income_per_age": 0.03907065858770005,
+    "age": -0.021839412052994087,
+    "annual_revenue_krw": 0.021148531398797146,
+    "biz_operation_years": 0.017804795664575043,
+    "biz_premise_ownership_norent_noown": -0.01645222430305827,
+    "job_stability_ratio": 0.014754673227542392,
+    "revenue_volatility_synth": -0.010419969201742778,
+    "biz_location_years": -0.009258433826197518,
+    "debt_to_income_synth": 0.007732316368965049,
+    "biz_region_risk_te": 0.0038193149906898707
+  }
+}
