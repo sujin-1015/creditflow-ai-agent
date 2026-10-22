@@ -132,6 +132,9 @@ def run_self_review(rec: CallRecorder, decision_call: dict, first_pass: dict) ->
     final_model_content = resp1.candidates[0].content if resp1.candidates else None
     if final_model_content is not None and (not history or history[-1] is not final_model_content):
         history.append(final_model_content)
+    # 파서 점검: 이어받은 이력에 1차 판정의 record_decision_tool 호출이 실제로 들어 있어야 한다 (정상이면 1)
+    history_record_calls = sum(len(_fc_args(c)) for c in history)
+    history_len = len(history)
     history.append(types.Content(role="user", parts=[types.Part(text=SELF_REVIEW_PROMPT)]))
 
     client = gemini_client.get_client()
@@ -163,6 +166,8 @@ def run_self_review(rec: CallRecorder, decision_call: dict, first_pass: dict) ->
         "decision_after_self_review": last["final_decision"] if last else first_pass["final_decision"],
         "changed": bool(last) and last["final_decision"] != first_pass["final_decision"],
         "n_record_calls": len(revisions),
+        "history_record_calls_inherited": history_record_calls,
+        "history_len_inherited": history_len,
         "other_tools_called": other_tools,
         "reply_text": reply[:600],
         "elapsed_sec": call2.get("elapsed_sec"),
