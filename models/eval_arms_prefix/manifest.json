@@ -1,0 +1,36 @@
+{
+  "created_at": "2026-10-22T03:36:22.323062+00:00",
+  "frozen_file_sha256": {
+    "scripts/agent/decision.py": "d7e016711fbfa598f562ce8466a87f54d27e04c5b75fd549836a0dd74b5c0dcf",
+    "scripts/agent/critic.py": "ed8cb309c501ddda8622e2309cd014905579801e5cf1fe2c2bab86d2f07ff2dc",
+    "scripts/agent/rag.py": "6f50e5a048bda5fca1c01adc3ae7c4ac0ae749c756e721df2411f4d24844181d",
+    "scripts/agent/business_text.py": "a1d3882b26010b0afbf641468df79327b2b0576152cbcce46c32e14ba0377404",
+    "scripts/agent/gemini_client.py": "10436e4a2715fac528cb21d65178b42c1d014eed757d231d9c5f86e5ee165b46",
+    "scripts/agent/data_tools.py": "f45754c26c76f418a672c09d7bb2796fb74e9e20c1ad2579f36798eb105f091e",
+    "scripts/agent/policy_docs/loan_policy.md": "f6886dddb8278992f7d461f7ca272cf2a3a7b9dc6363e25a5ce77a0fc001c44f",
+    "scripts/agent/eval_cases_v2.json": "c7afd99379fb154f24edc8395660ec91705eaf03d3f60a50a6c68731262a95c5",
+    "scripts/agent/eval_fixtures_legacy_repayments.json": "65b667af0c97a413e5431ce68791367eb163c22048c1804f32a5742e038950ec",
+    "models/xgboost_model.joblib": "73553a5820f38f6ff107e5ce506d27af33d4d52f4c753c29d6b09443a17b043a",
+    "models/threshold_config.json": "019c2b4460aa77eca5f47100a2376cc5af3202020a8a039ec89374f213159761",
+    "scripts/agent/eval_arms.py": "3af8b2682249c0ded8ac242bcf056333f21f17e68a4c87b087d64080b10f910b",
+    "docs/single_vs_multi_agent_experiment.md": "76cb49a1d77cdbb714cb34ba4f371181fba2e14e460c15e683a2ce23e8b4004a"
+  },
+  "git_head_at_first_run": "b5cfa0e272372e0f5e4ffdd82694f9846d193cc7",
+  "config": {
+    "decision_model_alias": "gemini-flash-lite-latest",
+    "embedding_model": "gemini-embedding-001",
+    "temperature": "미지정 (API 기본값; decision.py/critic.py가 GenerateContentConfig에 temperature를 주지 않음)",
+    "seed": "미지정",
+    "top_k_policy_retrieval": 3,
+    "inter_case_delay_sec": 20,
+    "planned_runs": 3,
+    "primary_run": 1,
+    "note": "1회차를 주 결과로 확정하고 2~3회차는 판정 안정성 지표로만 보고한다."
+  },
+  "arms_prompt": {
+    "condition": "prefix",
+    "decision_instruction_source": "git 87e869e^:scripts/agent/decision.py",
+    "decision_instruction_sha256": "7a23e9a60fc84627ce4d962fe81dabe15dfca2014d4efd46d4ef6fe931477130",
+    "self_review_prompt_sha256": "00e530293cd3de036f2913dbdddcbe5b0654824ca7f8a424a9394fcbe5eb822f"
+  }
+}
