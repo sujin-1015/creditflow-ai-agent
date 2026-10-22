@@ -96,6 +96,19 @@ class CallRecorder:
         self._installed = True
 
 
+def _tool_names(kw: dict) -> set[str]:
+    cfg = kw.get("config")
+    tools = getattr(cfg, "tools", None) or []
+    return {getattr(t, "__name__", None) for t in tools}
+
+
+def _find_call(rec: "CallRecorder", tool_name: str):
+    for c in rec.calls:
+        if tool_name in _tool_names(c["kw"]):
+            return c
+    return None
+
+
 def _fc_args(content) -> list[dict]:
     """Content에서 record_decision_tool 호출 인자를 모두 꺼낸다."""
     out = []
@@ -125,7 +138,8 @@ def run_self_review(rec: CallRecorder, decision_call: dict, first_pass: dict) ->
     generate = gemini_client.with_rate_limit_retry(client.models.generate_content)
     n_before = len(rec.calls)
     resp2 = generate(model=kw1["model"], contents=history, config=kw1["config"])
-    call2 = rec.calls[n_before] if len(rec.calls) > n_before else {}
+    # 자기검토 중 모델이 도구(요약기 등)를 다시 부르면 중첩 호출이 먼저 기록되므로 바깥 호출은 마지막에 기록된다.
+    call2 = rec.calls[-1] if len(rec.calls) > n_before else {}
 
     new_entries = list(getattr(resp2, "automatic_function_calling_history", None) or [])[len(history):]
     revisions = [a for c in new_entries for a in _fc_args(c)]
@@ -189,15 +203,19 @@ def run_arms_case(case: dict, legacy_fixtures: dict, rec: CallRecorder) -> dict:
         "reasoning": r.critic_reasoning,
         "policy_violation": r.critic_policy_violation,
     }
-    # make_final_decision 안의 호출: [0]=Decision 루프, [1]=Critic
-    decision_call = rec.calls[0]
-    critic_call = rec.calls[1] if len(rec.calls) > 1 else {}
+    # make_final_decision 안의 호출은 도구 안에서 중첩 호출되는 요약기 호출이 먼저 기록되므로(바깥 Decision
+    # 호출은 끝나야 기록됨), 호출 순서가 아니라 config.tools의 함수 이름으로 Decision/Critic을 식별한다.
+    decision_call = _find_call(rec, "record_decision_tool")
+    critic_call = _find_call(rec, "critic_review") or {}
+    summarizer_calls = [c for c in rec.calls if c is not decision_call and c is not critic_call]
     cost = {
         "first_pass_total_sec": first_pass_sec,
         "decision_call_sec": decision_call["elapsed_sec"],
         "decision_call_tokens": decision_call["total_tokens"],
         "critic_call_sec": critic_call.get("elapsed_sec"),
         "critic_call_tokens": critic_call.get("total_tokens"),
+        "other_calls_n": len(summarizer_calls),  # 요약기 등 도구 안의 LLM 호출 (A·B·C 공통 비용)
+        "other_calls_tokens": sum(c["total_tokens"] or 0 for c in summarizer_calls),
     }
     self_review = run_self_review(rec, decision_call, first_pass)
     return {
