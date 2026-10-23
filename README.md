@@ -236,6 +236,8 @@ scripts/
     eval_decision_agent_v2.py  # 품질 평가 하네스 (재개 가능, 고정 fixture)
     eval_cases_v2.json     # 사전 정의 골드 평가셋 (+ eval_cases_holdout_v1.json)
     report_eval_v2.py      # 평가 지표 계산
+    eval_arms.py           # 단일 Agent vs Multi Agent 비교 실험 러너 (A 단일 / B 자기검토 / C Decision+Critic)
+    report_arms.py         # 비교 실험 지표 계산 (과잉집행률, 오류 차단율, 오경보)
     validate_eval_cases.py # 평가셋 무결성·문서 표 일치 검사
     policy_docs/loan_policy.md  # 대출 정책 문서 (RAG 소스)
 service/
@@ -252,6 +254,8 @@ docs/
   genai_quality_evaluation.md  # Decision+Critic Agent 품질 평가 (사전 정의 골드 케이스 68건, 정확도/인용/도구호출/Critic 일치율/인젝션 방어/한도 우회, 한계 포함)
   eval_cases_v2_design.md      # 평가셋 v2 설계·ambiguous 기준·조항별 커버리지·골드 근거
   eval_improvement_log.md      # 평가에서 발견한 오류 유형과 프롬프트 개선 기록
+  single_vs_multi_agent_experiment.md  # 단일 vs Multi Agent 비교 실험 사전 프로토콜 (결과 전 확정)
+  single_vs_multi_agent_results.md     # 단일 vs Multi Agent 비교 실험 결과
   mlops.md                     # 모델 버전관리/성능 게이트/드리프트 체크 (scripts/model_registry.py, drift_check.py)
 ```
 
@@ -374,6 +378,20 @@ Decision Agent + Critic Agent 전체 파이프라인을 **평가 전에 정답�
 - Critic은 수정 전 오답 13건 중 5건을 지적했으나 파이프라인상 지적이 최종 판정을 바꾸지 않아 정정된 건은 0건이었다.
 - **한계**: 골드는 작성자 본인이 정의했고(독립 라벨링 아님), 기존 25건 중 13건은 골드를 사후에 지정했다. 합성 텍스트·작은 표본이라 통계적 성능 보증이 아니다. 수정 후 점수는 오류를 분석한 케이스와 같은 유형을 겨냥한 홀드아웃에서 얻은 것이라 새로운 오류 유형에 대한 보증이 아니며, 수정 후는 1회만 실행했다. 정책 인용 지표는 어휘 휴리스틱이다.
 - 재현: `python scripts/agent/validate_eval_cases.py --check-doc` (케이스·문서 무결성), `python scripts/agent/eval_decision_agent_v2.py --runs 1` (평가, 재개 가능), `python scripts/agent/report_eval_v2.py` (지표 계산).
+
+### 단일 Agent vs Multi Agent 비교
+
+Decision Agent 단독(A), 같은 Agent의 자기검토(B), 독립 Critic을 둔 Multi Agent(C)를 같은 케이스·같은 1차 판정에서 비교했다. 정답은 결과 전에 확정했고, 조건·지표·기준도 사전에 문서로 커밋했다 ([프로토콜](docs/single_vs_multi_agent_experiment.md), [결과](docs/single_vs_multi_agent_results.md)).
+
+| 조건 | 과잉집행률 (1차 Agent가 자주 틀리는 조건, 102건) | 1차 오답 중 차단·수정 |
+|---|---|---|
+| A. 단일 Agent | 11.8% (12건) | 0% |
+| B. 단일 Agent + 자기검토 | 11.8% (12건) | 5.3% (1/19) |
+| **C. Multi Agent (Decision + Critic)** | **3.9% (4건)** | **52.6% (10/19)** |
+
+- 독립 Critic은 과잉집행(정답보다 느슨하게 나간 집행)을 7.8%p 줄였고, 정상 판정을 잘못 막은 경우는 0건이었다(0/83). Critic이 반박해 보류한 10건은 모두 실제로 틀린 판정이었다.
+- 같은 Agent의 자기검토는 거의 효과가 없었다. 같은 검토 기준을 줬는데도 틀린 판정을 대부분 그대로 유지했다. 검토 단계를 더하는 것만으로는 부족하고, 검토자를 별도 호출로 분리한 구조가 차이를 만들었다.
+- 재현: `python scripts/agent/eval_arms.py --condition prefix --runs 1,2` (실험, 재개 가능), `python scripts/agent/report_arms.py` (지표 계산).
 
 ---
 
